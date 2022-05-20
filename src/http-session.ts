@@ -13,6 +13,7 @@ import { errorToLog, Logger, noOpLogger } from './logger';
 import { HttpHeaders } from './types';
 
 interface HttpSessionObject<P extends Record<string, unknown> = { username: string; password: string }> {
+  getParams: HttpSession<P>['getParams'];
   request: HttpSession<P>['request'];
   release: HttpSession<P>['releaseSession'];
   serialize: HttpSession<P>['serialize'];
@@ -63,10 +64,13 @@ export abstract class HttpSession<P extends Record<string, unknown> = { username
   }
   private serialize() {
     return {
-      params: this.params as P,
+      params: this.getParams(),
       defaultHeaders: this.defaultHeaders,
       cookies: this.cookieJar.toJSON(),
     };
+  }
+  private getParams() {
+    return this.params as Required<P>;
   }
   private changeStatus(params: {
     status?: HttpSession['status'];
@@ -112,6 +116,7 @@ export abstract class HttpSession<P extends Record<string, unknown> = { username
   private getSessionObject(): HttpSessionObject<P> {
     let sessionReleased = false;
     return {
+      getParams: () => this.getParams(),
       request: async <T extends HttpRequestDataType, R extends HttpResponseType>(
         options: HttpRequestOptions<T, R>
       ): Promise<HttpRequestResponse<R>> => {

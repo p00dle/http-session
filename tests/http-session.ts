@@ -116,7 +116,7 @@ describe('HttpSession', () => {
     const response = await session.request({ url: 'https://example.com', headers: requestHeaders });
     expect(response.headers).toEqual({ ...defaultHeaders, ...requestHeaders });
   });
-  it('throw when calling request or serialize after release', async () => {
+  it('throw when calling request or serialize after release but when calling getParams', async () => {
     const testSession = new TestHttpSession();
     const session = await testSession.requestSession();
     await session.release();
@@ -132,6 +132,7 @@ describe('HttpSession', () => {
     } catch (err) {
       errorSerialize = err;
     }
+    expect(session.getParams()).toEqual({});
     expect(errorRequest).not.toBeNull();
     expect(errorSerialize).not.toBeNull();
   });
