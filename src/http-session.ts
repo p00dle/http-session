@@ -17,6 +17,8 @@ export interface HttpSessionObject<P = { username: string; password: string }> {
   request: HttpSession<P>['request'];
   release: HttpSession<P>['releaseSession'];
   serialize: HttpSession<P>['serialize'];
+  reportLockout: HttpSession<P>['reportLockout'];
+  invalidate: HttpSession<P>['invalidateSession'];
 }
 
 interface HttpSessionStatusData {
@@ -34,7 +36,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
   protected logout?(params: P): Promise<void>;
   protected _makeHttpRequest?: MakeHttpRequest;
   protected alwaysRenew?: boolean;
-  protected waitAfterError?: number;
+  protected lockoutTime?: number;
   protected heartbeatURL?: string;
   protected heartbeatInterval?: number;
   protected params: Partial<P> = {};
@@ -50,7 +52,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
   private requestQueue: { resolve: (val: HttpSessionObject<P>) => any; reject: (err: unknown) => any }[] = [];
   private loginPromise: Promise<any> | null = null;
   private logoutPromise: Promise<any> | null = null;
-  private status: 'Logged Out' | 'Logging In' | 'Ready' | 'In Use' | 'Logging Out' | 'Error' =
+  private status: 'Logged Out' | 'Logging In' | 'Ready' | 'In Use' | 'Logging Out' | 'Error' | 'Locked Out' =
     this.login || this.validateParams ? 'Logged Out' : 'Ready';
   private statusChangeListeners: ((data: HttpSessionStatusData) => void)[] = [];
   public onStatusChange(listener: (data: HttpSessionStatusData) => void): () => void {
@@ -115,32 +117,28 @@ export abstract class HttpSession<P = { username: string; password: string }> {
   }
   private getSessionObject(): HttpSessionObject<P> {
     let sessionReleased = false;
+    const wrap = <A extends any[], R>(
+      fnName: string,
+      fn: (...args: A) => R,
+      releaseAfter?: boolean
+    ): ((...args: A) => R) => {
+      return (...args) => {
+        if (sessionReleased) {
+          throw new Error(`calling ${fnName} failed because session has already been released`);
+        } else if (this.status !== 'In Use') {
+          throw new Error(`calling ${fnName} failed because session is in status ${this.status}`);
+        }
+        if (releaseAfter) sessionReleased = true;
+        return fn(...args);
+      };
+    };
     return {
-      getParams: () => this.getParams(),
-      request: async <T extends HttpRequestDataType, R extends HttpResponseType>(
-        options: HttpRequestOptions<T, R>
-      ): Promise<HttpRequestResponse<R>> => {
-        if (sessionReleased) {
-          throw new Error('Request after session was released is not allowed');
-        } else if (this.status === 'Logged Out') {
-          throw new Error('Session forced to stop');
-        } else {
-          return this.request(options);
-        }
-      },
-      release: (errorMessage?: string) => {
-        sessionReleased = true;
-        return this.releaseSession(errorMessage);
-      },
-      serialize: () => {
-        if (sessionReleased) {
-          throw new Error('Serialize after session was released is not allowed');
-        } else if (this.status === 'Logged Out') {
-          throw new Error('Session forced to stop');
-        } else {
-          return this.serialize();
-        }
-      },
+      getParams: wrap('getParams', () => this.getParams()),
+      request: wrap('request', (options) => this.request(options)),
+      release: wrap('release', () => this.releaseSession(), true),
+      serialize: wrap('serialize', () => this.serialize()),
+      invalidate: wrap('invalidate', (err) => this.invalidateSession(err), true),
+      reportLockout: wrap('reportLockout', () => this.reportLockout(), true),
     };
   }
   private logoutWrapper(): Promise<void> {
@@ -183,8 +181,8 @@ export abstract class HttpSession<P = { username: string; password: string }> {
         ? Promise.resolve()
         : new Promise<void>(async (resolve, reject) => {
             try {
-              if (this.waitAfterError) {
-                const waitFor = this.lastError ? this.lastError + this.waitAfterError - Date.now() : 0;
+              if (this.status === 'Locked Out' && this.lockoutTime && this.lastError) {
+                const waitFor = this.lastError + this.lockoutTime - Date.now();
                 if (waitFor > 0) {
                   await new Promise((resolve) => setTimeout(resolve, waitFor));
                 }
@@ -305,19 +303,23 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       }
     });
   }
-  private async releaseSession(errorMessage?: string) {
+  private async invalidateSession(errorMessage: string) {
+    this.changeStatus({ status: 'Error', error: errorMessage, lastError: Date.now() });
+    this.isInitialised = false;
+  }
+  private async reportLockout() {
+    this.changeStatus({ status: 'Locked Out', lastError: Date.now() });
+    this.isInitialised = false;
+  }
+  private async releaseSession() {
     this.lastUrl = undefined;
     this.requestCount--;
-    if (errorMessage) {
-      this.lastError = Date.now();
-      this.requestQueue.forEach(({ reject }) => reject(`Error in session`));
-      this.requestQueue = [];
-      this.changeStatus({ status: 'Error', error: errorMessage, lastError: Date.now() });
-      this.isInitialised = false;
-    } else if (this.allowMultipleRequests) {
-      this.changeStatus({ status: this.requestCount === 0 ? 'Ready' : 'In Use' });
-    } else if (!this.allowMultipleRequests) {
-      if (this.alwaysRenew) {
+    if (this.allowMultipleRequests) {
+      if (this.status !== 'Locked Out') {
+        this.changeStatus({ status: this.requestCount === 0 ? 'Ready' : 'In Use' });
+      }
+    } else {
+      if (this.alwaysRenew && this.status !== 'Locked Out' && this.status !== 'Error') {
         this.loginPromise = null;
         await this.logoutWrapper();
         this.logoutPromise = null;
@@ -339,7 +341,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
         } else {
           nextRequest.resolve(this.getSessionObject());
         }
-      } else if (!this.alwaysRenew) {
+      } else if (!this.alwaysRenew && this.status !== 'Locked Out' && this.status !== 'Error') {
         this.changeStatus({ status: 'Ready' });
       }
     }

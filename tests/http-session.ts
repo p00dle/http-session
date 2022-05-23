@@ -39,6 +39,7 @@ class TestHttpSession extends HttpSession<{ str: string; num: number }> {
     this.validateCalledWithParams = params;
   }
   protected allowMultipleRequests = true;
+  protected lockoutTime = 100;
   protected _makeHttpRequest? = mockHttpRequest;
 }
 
@@ -76,9 +77,11 @@ describe('HttpSession', () => {
     const session = await testSession.requestSession();
     await session.request({ url: 'https://example.com' });
     const sessionData = session.serialize();
+    const sessionParams = session.getParams();
     await session.release();
     removeStatusChangeListener();
     expect(sessionData).toEqual({ params: { str: 'abc', num: 123 }, defaultHeaders: {}, cookies: [] });
+    expect(sessionParams).toEqual({ str: 'abc', num: 123 });
     expect(statuses).toEqual(['Logging In', 'In Use', 'Ready']);
     expect(testSession.validateCalledWithParams).toEqual(suppliedParams);
     expect(testSession.loginCalledWithParams).toEqual(suppliedParams);
@@ -122,6 +125,7 @@ describe('HttpSession', () => {
     await session.release();
     let errorRequest: any = null;
     let errorSerialize: any = null;
+    let errorGetParams: any = null;
     try {
       await session.request({ url: 'https://example.com' });
     } catch (err) {
@@ -132,7 +136,12 @@ describe('HttpSession', () => {
     } catch (err) {
       errorSerialize = err;
     }
-    expect(session.getParams()).toEqual({});
+    try {
+      session.getParams();
+    } catch (err) {
+      errorGetParams = err;
+    }
+    expect(errorGetParams).not.toBeNull();
     expect(errorRequest).not.toBeNull();
     expect(errorSerialize).not.toBeNull();
   });
@@ -304,15 +313,6 @@ describe('HttpSession', () => {
     const session2 = await session2Promise;
     expect(typeof session2.release).toBe('function');
   });
-  it('waiting session requests will reject if there is an error in the current one', async () => {
-    const testSession = new EmptySession();
-    const rejectionError = await new Promise(async (resolve) => {
-      const session = await testSession.requestSession();
-      testSession.requestSession().then(() => undefined, resolve);
-      await session.release('error');
-    });
-    expect(rejectionError).not.toBeNull();
-  });
   it('waiting session requests will reject when session is forced to stop and current one will reject on request and serialize', async () => {
     const testSession = new EmptySession();
     const session = await testSession.requestSession();
@@ -344,39 +344,31 @@ describe('HttpSession', () => {
     });
     expect(waitRejectionError).not.toBeNull();
   });
-  it('if waitAfterError is specified session will wait before logging in again after an error', async () => {
-    class WaitAfterErrorSession extends HttpSession {
-      protected async login(): Promise<void> {
-        await waitFor(30);
-      }
-      protected async logout(): Promise<void> {
-        await waitFor(30);
-      }
-      protected waitAfterError = 100;
-    }
-    const testSession = new WaitAfterErrorSession();
-    let session = await testSession.requestSession();
-    await session.release('error');
-    const start = Date.now();
-    session = await testSession.requestSession();
-    expect(Date.now() - start).toBeGreaterThanOrEqual(100);
-    await session.release();
-    testSession.forceStop();
+  it('invalidate session will force the next request to login again', async () => {
+    const testSession = new TestHttpSession();
+    testSession.setParams({ str: 'abc' });
+    const session = await testSession.requestSession();
+    expect(testSession.loginCalledWithParams).toEqual({ str: 'abc' });
+    testSession.setParams({ str: 'def' });
+    await session.invalidate('');
+    await testSession.requestSession();
+    expect(testSession.loginCalledWithParams).toEqual({ str: 'def' });
+    await testSession.forceStop();
+  });
+  it('reportLockout will force the next request to wait until lockout runs out', async () => {
+    const testSession = new TestHttpSession();
+    testSession.setParams({ str: 'abc' });
+    const session = await testSession.requestSession();
+    expect(testSession.loginCalledWithParams).toEqual({ str: 'abc' });
+    testSession.setParams({ str: 'def' });
+    const startTime = Date.now();
+    await session.reportLockout();
+    await testSession.requestSession();
+    expect(Date.now() - startTime).toBeGreaterThanOrEqual(100);
+    await testSession.forceStop();
   });
 });
 
 /*
-- setDefaultHeaders
-- request after release
-*** serialize; add a method for importing serialized data ***
-- error on initialise
-- heartbeat
-- headers with default headers
-- cookies without cookiejar
-- allowmultiplerequests
-- requestsession timeout
-- releasesession with an error
-- multiple requestsession
-- alwaysrenew
 
 */
