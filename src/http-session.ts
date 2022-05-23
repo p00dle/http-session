@@ -236,7 +236,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       }
     }
   }
-  private async request<T extends HttpRequestDataType, R extends HttpResponseType>(
+  protected async request<T extends HttpRequestDataType, R extends HttpResponseType>(
     options: HttpRequestOptions<T, R>
   ): Promise<HttpRequestResponse<R>> {
     const { agent, cookieJar, headers, logger, previousUrl, ...otherOptions } = options;
