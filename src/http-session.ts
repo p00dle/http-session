@@ -12,7 +12,7 @@ import { CookieJar } from './cookie';
 import { errorToLog, Logger, noOpLogger } from './logger';
 import { HttpHeaders } from './types';
 
-interface HttpSessionObject<P extends Record<string, unknown> = { username: string; password: string }> {
+interface HttpSessionObject<P = { username: string; password: string }> {
   getParams: HttpSession<P>['getParams'];
   request: HttpSession<P>['request'];
   release: HttpSession<P>['releaseSession'];
@@ -28,7 +28,7 @@ interface HttpSessionStatusData {
   isInitialised: boolean;
 }
 
-export abstract class HttpSession<P extends Record<string, unknown> = { username: string; password: string }> {
+export abstract class HttpSession<P = { username: string; password: string }> {
   protected validateParams?(params: P): any;
   protected login?(params: P): Promise<void>;
   protected logout?(params: P): Promise<void>;
