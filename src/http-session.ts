@@ -12,7 +12,7 @@ import { CookieJar } from './cookie';
 import { errorToLog, Logger, noOpLogger } from './logger';
 import { HttpHeaders } from './types';
 
-interface HttpSessionObject<P = { username: string; password: string }> {
+export interface HttpSessionObject<P = { username: string; password: string }> {
   getParams: HttpSession<P>['getParams'];
   request: HttpSession<P>['request'];
   release: HttpSession<P>['releaseSession'];
