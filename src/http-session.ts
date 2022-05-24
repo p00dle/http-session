@@ -8,17 +8,23 @@ import type {
 
 import { httpRequest } from './http-request';
 import { Agent } from 'https';
-import { CookieJar } from './cookie';
+import { Cookie, CookieJar } from './cookie';
 import { errorToLog, Logger, noOpLogger } from './logger';
 import { HttpHeaders } from './types';
 
-export interface HttpSessionObject<P = { username: string; password: string }> {
-  getParams: HttpSession<P>['getParams'];
-  request: HttpSession<P>['request'];
-  release: HttpSession<P>['releaseSession'];
-  serialize: HttpSession<P>['serialize'];
-  reportLockout: HttpSession<P>['reportLockout'];
-  invalidate: HttpSession<P>['invalidateSession'];
+export interface HttpSessionObject<P> {
+  getParams: () => P;
+  request: <T extends HttpRequestDataType, R extends HttpResponseType>(
+    options: HttpRequestOptions<T, R>
+  ) => Promise<HttpRequestResponse<R>>;
+  release: () => Promise<void>;
+  serialize: () => {
+    params: P;
+    defaultHeaders: HttpHeaders;
+    cookies: Cookie[];
+  };
+  reportLockout: () => Promise<void>;
+  invalidate: (error: string) => Promise<void>;
 }
 
 interface HttpSessionStatusData {
