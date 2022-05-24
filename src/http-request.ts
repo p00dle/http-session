@@ -364,7 +364,9 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       response = await responsePromise;
       cookieJar.collectCookiesFromResponse(redirectUrl, response.headers);
       if (!isRedirect(response.statusCode)) break;
-      nodeRequestParams.headers = addRefererToHeaders(redirectUrl, nodeRequestParams.headers);
+      addRefererToHeaders(redirectUrl, nodeRequestParams.headers);
+      nodeRequestParams.headers.Host = redirectUrl.hostname;
+      nodeRequestParams.headers.Origin = redirectUrl.origin;
       const originalUrl = redirectUrl;
       redirectUrl = makeRedirectUrl(originalUrl, response.headers.location);
       if (redirectUrl === invalidUrl) {
