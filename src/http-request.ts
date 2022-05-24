@@ -365,13 +365,13 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       cookieJar.collectCookiesFromResponse(redirectUrl, response.headers);
       if (!isRedirect(response.statusCode)) break;
       addRefererToHeaders(redirectUrl, nodeRequestParams.headers);
-      nodeRequestParams.headers.Host = redirectUrl.hostname;
-      nodeRequestParams.headers.Origin = redirectUrl.origin;
       const originalUrl = redirectUrl;
       redirectUrl = makeRedirectUrl(originalUrl, response.headers.location);
       if (redirectUrl === invalidUrl) {
         throw makeHttpRequestError(new Error('Redirected to invalid URL'), responseData);
       }
+      nodeRequestParams.headers.Host = redirectUrl.hostname;
+      nodeRequestParams.headers.Origin = redirectUrl.origin;
       responseData.redirectUrls.push(redirectUrl.toString());
       nodeRequestParams.headers = cookieJar.addCookiesToHeaders(redirectUrl, nodeRequestParams.headers, originalUrl);
       logger.debug({
