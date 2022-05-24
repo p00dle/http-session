@@ -26,16 +26,6 @@ function getCookieHeaders(headers?: HttpHeaders): string[] {
   return cookieHeader;
 }
 
-/*
-cookie path = /foo/bar
-url path = /foo
-DONT MATCH
-
-cookie path = /foo
-url path = /foo/bar
-MATCH
-*/
-
 function cookieFilterFactory(url: URL, previousUrl: URL | undefined): (cookie: Cookie) => boolean {
   const isSecure = url.protocol === 'https:';
   const domain = url.hostname;
@@ -161,7 +151,7 @@ function parseCookie(hostUrl: URL, cookieStr: string): Cookie | null {
   if (keyHasInvalidCharacters(cookie.key) || valueHasInvalidCharacters(cookie.value)) {
     return null;
   }
-  if (hostUrl.hostname !== cookie.domain) {
+  if (!hostUrl.hostname.endsWith(cookie.domain)) {
     return null;
   }
   if (cookie.secure && hostUrl.protocol !== 'https:') {
