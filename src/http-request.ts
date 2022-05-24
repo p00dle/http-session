@@ -264,7 +264,7 @@ function makeResponseData<T extends HttpRequestDataType, R extends HttpResponseT
 
 function addRefererToHeaders(url: URL, headers: HttpHeaders) {
   const output = headers;
-  output.Referer = url.origin + url.pathname + (url.search.length > 0 ? '?' + url.search : '');
+  output.Referer = url.origin + url.pathname + url.search;
   return output;
 }
 
