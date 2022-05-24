@@ -1,23 +1,13 @@
+import type { Cookie } from './types/cookies';
+import type { HttpHeaders } from './types/http-request';
+
 import { URL } from 'node:url';
-import { HttpHeaders } from './types';
 
 /*
 Resources:
  https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
  https://en.wikipedia.org/wiki/HTTP_cookie#Cookie_attributes
 */
-
-export interface Cookie {
-  key: string;
-  value: string;
-  domain: string;
-  isHttps: boolean;
-  allowSubDomains: boolean;
-  path: string;
-  expires?: number;
-  secure?: boolean;
-  sameSite: 'Strict' | 'Lax' | 'None';
-}
 
 const cookieDefaults: Required<Pick<Cookie, 'allowSubDomains' | 'sameSite' | 'isHttps' | 'path'>> = {
   allowSubDomains: false,

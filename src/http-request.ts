@@ -1,15 +1,23 @@
-import type { Agent, RequestOptions } from 'node:https';
-import type { Readable, Writable } from 'node:stream';
-import type { Cookie } from './cookie';
-import type { HttpHeaders } from './types';
-import type { Logger } from './logger';
-
+import type { RequestOptions } from 'node:https';
+import type { Readable } from 'node:stream';
 import { CookieJar } from './cookie';
 import { URL } from 'node:url';
 import { request as nodeHttpsRequest } from 'node:https';
 import { request as nodeHttpRequest } from 'node:http';
 import { noOpLogger } from './logger';
 import { asyncPipeline, collectStreamToBuffer, collectStreamToString, limitString, makeCallbackPromise } from './utils';
+import type {
+  ErrorWithStack,
+  HttpRequestError,
+  HttpRequestResponse,
+  HttpHeaders,
+  HttpRequestDataType,
+  HttpMethod,
+  HttpRequestOptions,
+  HttpRequestParams,
+  HttpResponseType,
+  ResponseStream,
+} from './types/http-request';
 
 /* Resources
 https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
@@ -18,105 +26,7 @@ https://nodejs.org/api/http.html#class-httpagent
 https://stackoverflow.com/a/64208818
 */
 
-export type HttpResponseType = 'string' | 'binary' | 'json' | 'stream';
-export type HttpRequestDataType = 'json' | 'stream' | 'form' | 'binary' | 'raw';
-
-export type HttpRequestData<T extends HttpRequestDataType | undefined> = T extends undefined
-  ? any
-  : T extends 'raw'
-  ? any
-  : T extends 'json'
-  ? any
-  : T extends 'stream'
-  ? Readable
-  : T extends 'form'
-  ? Record<string, string | string[]>
-  : T extends 'binary'
-  ? Buffer | Uint8Array
-  : never;
-
-export interface HttpRequestOptions<T extends HttpRequestDataType, R extends HttpResponseType> {
-  url: URL | string;
-  previousUrl?: URL | string;
-  method?: HttpMethod;
-  responseType?: R;
-  agent?: Agent | false;
-  headers?: HttpHeaders;
-  abortSignal?: AbortSignal;
-  hidePassword?: string;
-  timeout?: number;
-  dataType?: T;
-  data?: HttpRequestData<T>;
-  cookies?: Cookie[];
-  cookieJar?: CookieJar;
-  maxRedirects?: number;
-  logger?: Logger;
-  _request?: MakeHttpRequest;
-}
-
-type ResponseStream = Readable & {
-  headers: HttpHeaders;
-  statusCode?: number;
-  statusMessage?: string;
-};
-
-export type MakeHttpRequest = (url: URL, options: RequestOptions, callback: (data: ResponseStream) => any) => Writable;
-
-interface HttpRequestParams {
-  dataType: HttpRequestDataType;
-  responseType: HttpResponseType;
-  formattedData: Readable | string | Buffer | Uint8Array;
-  maxRedirects: number;
-  logger: Logger;
-  makeHttpRequest: MakeHttpRequest;
-  makeHttpsRequest: MakeHttpRequest;
-}
-
-export type HttpResponseDataType<T extends HttpResponseType> =
-  | (T extends 'json'
-      ? unknown
-      : T extends 'binary'
-      ? Buffer
-      : T extends 'stream'
-      ? Readable
-      : T extends 'string'
-      ? string
-      : never)
-  | null;
-
-export interface HttpRequestResponse<T extends HttpResponseType> {
-  status: number;
-  statusMessage: string;
-  url: URL;
-  redirectUrls: string[];
-  redirectCount: 0;
-  headers: HttpHeaders;
-  cookies: Record<string, string>;
-  data: HttpResponseDataType<T>;
-  request: {
-    method: string;
-    url: URL;
-    timeout: number | '[NO TIMEOUT]';
-    dataType: HttpRequestDataType;
-    data: any;
-    formattedData: Readable | string | Buffer | Uint8Array;
-    headers: HttpHeaders;
-    cookies: Record<string, string>;
-  };
-}
-export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
-
-type ErrorWithStack = {
-  message?: string;
-  stack: string;
-} & Record<string, unknown>;
-
-interface HttpRequestError {
-  message: string;
-  stack: string;
-  request: HttpRequestResponse<any>['request'];
-  response: Omit<HttpRequestResponse<any>, 'request'>;
-}
+const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0';
 
 export function isHttpRequestError(err: any): err is HttpRequestError {
   return (
@@ -215,7 +125,7 @@ function makeHeaders(
   isGetMethod: boolean
 ) {
   const headers = copyHeaders(existingHeaders);
-  if (!isGetMethod) {
+  if (!isGetMethod && !headers['Content-Type'] && !headers['Content-Length']) {
     if (requestParams.dataType === 'form') {
       headers['Content-Type'] = 'application/x-www-form-urlencoded';
       headers['Content-Length'] = Buffer.byteLength(requestParams.formattedData as string);
@@ -228,6 +138,18 @@ function makeHeaders(
     } else if (requestParams.dataType === 'raw') {
       headers['Content-Length'] = Buffer.byteLength(requestParams.formattedData as string);
     }
+  }
+  if (previousUrl && !headers['Referer']) {
+    addRefererToHeaders(previousUrl, headers);
+  }
+  if (!headers['Origin']) {
+    headers['Origin'] = url.origin;
+  }
+  if (!headers['Host']) {
+    headers['Host'] = url.hostname;
+  }
+  if (!headers['User-Agent']) {
+    headers['User-Agent'] = DEFAULT_USER_AGENT;
   }
   cookieJar.addCookiesToHeaders(url, headers, previousUrl);
   return headers;
@@ -487,7 +409,3 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
     throw err;
   }
 }
-
-// TODO: might need to use http.request for http requests and _httpRequest for both
-// TODO: maybe make a copy of nodeRequestParams so it doesn't change
-// TODO: what if there is an error on stream?

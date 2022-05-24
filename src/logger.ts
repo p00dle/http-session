@@ -1,16 +1,4 @@
-interface LogPayload {
-  message: string;
-  details: string;
-}
-
-type LoggerFunction = (payload: LogPayload) => any;
-
-export interface Logger {
-  debug: LoggerFunction;
-  info: LoggerFunction;
-  warn: LoggerFunction;
-  error: LoggerFunction;
-}
+import { LogPayload } from './types/logger';
 
 const noOp = function () {
   //

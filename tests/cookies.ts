@@ -1,8 +1,8 @@
-import type { Cookie } from '../src/cookie';
+import type { Cookie } from '../src/types/cookies';
+import type { HttpHeaders } from '../src/types/http-request';
 
 import { CookieJar } from '../src';
 import { makeCookie } from '../src/cookie';
-import { HttpHeaders } from '../src/types';
 
 describe('cookies', () => {
   function collectCookies(url: URL, cookieStrings: string[]): Cookie[] {

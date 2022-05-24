@@ -1,4 +1,4 @@
-export type { Cookie } from './cookie';
+export type { Cookie } from './types/cookies';
 export type {
   HttpMethod,
   HttpRequestData,
@@ -7,7 +7,7 @@ export type {
   HttpRequestResponse,
   HttpResponseDataType,
   HttpResponseType,
-} from './http-request';
+} from './types/http-request';
 export type { HttpSessionObject } from './http-session';
 
 export { httpRequest } from './http-request';

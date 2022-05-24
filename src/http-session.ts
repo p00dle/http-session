@@ -4,13 +4,14 @@ import type {
   HttpRequestResponse,
   HttpResponseType,
   MakeHttpRequest,
-} from './http-request';
-
+  HttpHeaders,
+} from './types/http-request';
+import type { Logger } from './types/logger';
+import type { Cookie } from './types/cookies';
 import { httpRequest } from './http-request';
 import { Agent } from 'https';
-import { Cookie, CookieJar } from './cookie';
-import { errorToLog, Logger, noOpLogger } from './logger';
-import { HttpHeaders } from './types';
+import { CookieJar } from './cookie';
+import { errorToLog, noOpLogger } from './logger';
 
 export interface HttpSessionObject<P> {
   getParams: () => P;

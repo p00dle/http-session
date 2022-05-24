@@ -1,12 +1,12 @@
 import type { RequestOptions } from 'node:https';
+import type { MakeHttpRequest, HttpHeaders } from '../src/types/http-request';
+import type { Cookie } from '../src/types/cookies';
 
-import { isHttpRequestError, MakeHttpRequest } from '../src/http-request';
-
+import { isHttpRequestError } from '../src/http-request';
 import { httpRequest } from '../src';
-import { HttpHeaders } from '../src/types';
 import { Readable, Writable } from 'node:stream';
 import { collectStreamToString, makeCallbackPromise } from '../src/utils';
-import { Cookie, CookieJar, makeCookie } from '../src/cookie';
+import { CookieJar, makeCookie } from '../src/cookie';
 
 function createReadableStream(str: string | Buffer, chunkSize = 10): Readable {
   let start = 0;

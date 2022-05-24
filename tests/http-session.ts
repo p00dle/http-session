@@ -117,7 +117,7 @@ describe('HttpSession', () => {
 
     const session = await testSession.requestSession();
     const response = await session.request({ url: 'https://example.com', headers: requestHeaders });
-    expect(response.headers).toEqual({ ...defaultHeaders, ...requestHeaders });
+    expect(response.headers).toMatchObject({ ...defaultHeaders, ...requestHeaders });
   });
   it('throw when calling request or serialize after release but when calling getParams', async () => {
     const testSession = new TestHttpSession();
