@@ -1,5 +1,5 @@
 import type { RequestOptions } from 'node:https';
-import type { Readable } from 'node:stream';
+import type { Readable, Transform } from 'node:stream';
 import { CookieJar } from './cookies/jar';
 import { URL } from 'node:url';
 import { request as nodeHttpsRequest } from 'node:https';
@@ -18,7 +18,7 @@ import type {
   HttpResponseType,
   ResponseStream,
 } from './types/http-request';
-
+import { createGzip, createBrotliDecompress, createDeflate } from 'node:zlib';
 /* Resources
 https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
 https://nodejs.org/api/http.html#httprequestoptions-callback
@@ -204,6 +204,14 @@ function makeOptions<T extends HttpRequestDataType>(
     },
     options.hidePassword || '',
   ];
+}
+
+function getContentEncoding(headers: HttpHeaders): null | 'gzip' | 'br' | 'deflate' {
+  const acceptedValues = ['gzip', 'br', 'deflate'];
+  const headerValue = (headers['Content-Encoding'] || headers['content-encoding'] || null) as string | null;
+  if (headerValue === null) return null;
+  if (acceptedValues.includes(headerValue)) return headerValue as 'gzip' | 'br' | 'deflate';
+  else throw Error('Content-Encoding not recognised: ' + headerValue);
 }
 
 function isRedirect(status?: number): boolean {
@@ -417,12 +425,28 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       throw makeHttpRequestError(new Error('Max redirect count exceeded'), responseData);
     }
     const [cookies, headers] = extractCookiesFromHeaders(response.headers, true);
+    let dataStream: Readable | Transform = response;
+    const contentEncoding = getContentEncoding(response.headers);
+    if (contentEncoding === 'br') {
+      const decompress = createBrotliDecompress();
+      response.pipe(decompress);
+      dataStream = decompress;
+    } else if (contentEncoding === 'deflate') {
+      const decompress = createDeflate();
+      response.pipe(decompress);
+      dataStream = decompress;
+    } else if (contentEncoding === 'gzip') {
+      const decompress = createGzip();
+      response.pipe(decompress);
+      dataStream = decompress;
+    }
+
     let data =
       responseType === 'stream'
-        ? response
+        ? dataStream
         : responseType === 'binary'
-        ? await collectStreamToBuffer(response)
-        : await collectStreamToString(response);
+        ? await collectStreamToBuffer(dataStream)
+        : await collectStreamToString(dataStream);
     if (responseType === 'json') data = JSON.parse(data as string);
     responseData.status = response.statusCode as number;
     responseData.statusMessage = response.statusMessage || '';
