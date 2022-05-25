@@ -24,6 +24,7 @@ https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
 https://nodejs.org/api/http.html#httprequestoptions-callback
 https://nodejs.org/api/http.html#class-httpagent
 https://stackoverflow.com/a/64208818
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referrer-Policy
 */
 
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0';
@@ -145,7 +146,7 @@ function makeHeaders(
     }
   }
   if (previousUrl && !headers['Referer']) {
-    addRefererToHeaders(previousUrl, headers);
+    addRefererToHeaders(url, previousUrl, headers);
   }
   if (!headers['Origin']) {
     headers['Origin'] = requestParams.origin;
@@ -267,11 +268,22 @@ function makeResponseData<T extends HttpRequestDataType, R extends HttpResponseT
     },
   };
 }
-
-function addRefererToHeaders(url: URL, headers: HttpHeaders) {
-  const output = headers;
-  output.Referer = url.origin + url.pathname + url.search;
-  return output;
+/*
+strict-origin-when-cross-origin
+Send the origin, path, and querystring when performing a same-origin request. 
+For cross-origin requests send the origin (only) when the protocol security level stays same (HTTPS→HTTPS). 
+Don't send the Referer header to less secure destinations (HTTPS→HTTP).
+*/
+function addRefererToHeaders(url: URL, previousUrl: URL, headers: HttpHeaders) {
+  const sameOrigin = url.origin === previousUrl.origin;
+  const securityDowngrade = previousUrl.protocol === 'https:' && url.protocol === 'http:';
+  if (securityDowngrade) {
+    delete headers.Referer;
+  } else if (sameOrigin) {
+    headers.Referer = previousUrl.origin + previousUrl.pathname + previousUrl.search;
+  } else {
+    headers.Referer = previousUrl.origin;
+  }
 }
 
 function isPathAbsolute(str: string): boolean {
@@ -370,9 +382,9 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       response = await responsePromise;
       cookieJar.collectCookiesFromResponse(redirectUrl, response.headers);
       if (!isRedirect(response.statusCode)) break;
-      addRefererToHeaders(redirectUrl, nodeRequestParams.headers);
       const originalUrl = redirectUrl;
       redirectUrl = makeRedirectUrl(originalUrl, response.headers.location);
+      addRefererToHeaders(redirectUrl, originalUrl, nodeRequestParams.headers);
       if (redirectUrl === invalidUrl) {
         throw makeHttpRequestError(new Error('Redirected to invalid URL'), responseData);
       }
