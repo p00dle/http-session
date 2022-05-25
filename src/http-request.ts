@@ -157,6 +157,19 @@ function makeHeaders(
   if (!headers['User-Agent']) {
     headers['User-Agent'] = DEFAULT_USER_AGENT;
   }
+  if (!headers['Accept']) {
+    if (requestParams.responseType === 'json') {
+      headers['Accept'] = 'application/json';
+    } else {
+      headers['Accept'] = 'text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8';
+    }
+  }
+  if (!headers['Accept-Encoding']) {
+    headers['Accept-Encoding'] = 'gzip, deflate, br';
+  }
+  if (!headers['Accept-Language']) {
+    headers['Accept-Language'] = 'en-GB,en;q=0.5';
+  }
   const cookies = cookieJar.getRequestCookies(url, requestParams.host);
   headers.Cookie = headers.Cookie ? headers.Cookie.concat(cookies) : cookies;
   return headers;
@@ -361,6 +374,8 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
     do {
       if (!keepMethodAndData) {
         nodeRequestParams.method = 'GET';
+        nodeRequestParams.headers['Content-Length'] = 0;
+        delete nodeRequestParams.headers['Content-Type'];
       }
       const [responsePromise, responseCallback] = makeCallbackPromise<ResponseStream>();
       if (responseData.redirectCount === 0) {

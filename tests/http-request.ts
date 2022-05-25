@@ -378,12 +378,17 @@ describe('httpRequest', () => {
     );
     expect(errorUndefinedRedirect).not.toBeNull();
   });
-  it('handles cookies correctly', async () => {
+  it('handles cookies and headers correctly', async () => {
     const assertions: boolean[] = [];
+    const assertionErrors: string[] = [];
     const requestHeaders: HttpHeaders = {
       'Content-Type': 'application/magic',
       Cookie: ['header-cookie=123'],
     };
+    function assert(label: string, test: boolean) {
+      assertions.push(test);
+      if (!test) assertionErrors.push(label);
+    }
     const requestCookies: Cookie[] = [
       makeCookie({ key: 'a', value: 'b', domain: 'example.com' }),
       makeCookie({ key: 'c', value: 'd', domain: 'example.com' }),
@@ -392,18 +397,25 @@ describe('httpRequest', () => {
       'Set-Cookie': ['e=f', 'g=h'],
     };
     const makeHttpRequest = mockHeadersHttpRequestFactory((requestHeaders) => {
-      assertions.push(requestHeaders['Content-Type'] === 'application/magic');
+      assert(
+        `requestHeaders['Content-Type'] === 'application/magic'`,
+        requestHeaders['Content-Type'] === 'application/magic'
+      );
       if (Array.isArray(requestHeaders.Cookie)) {
-        assertions.push(requestHeaders.Cookie.includes('header-cookie=123'));
-        assertions.push(requestHeaders.Cookie.includes('a=b'));
-        assertions.push(requestHeaders.Cookie.includes('c=d'));
+        assert(
+          `requestHeaders.Cookie.includes('header-cookie=123')`,
+          requestHeaders.Cookie.includes('header-cookie=123')
+        );
+        assert(`requestHeaders.Cookie.includes('a=b')`, requestHeaders.Cookie.includes('a=b'));
+        assert(`requestHeaders.Cookie.includes('c=d')`, requestHeaders.Cookie.includes('c=d'));
       } else {
-        assertions.push(false);
+        assert('Array.isArray(requestHeaders.Cookie)', false);
       }
       return responseHeaders;
     });
     const cookieJar = new CookieJar();
     const response = await httpRequest({
+      method: 'POST',
       _request: makeHttpRequest,
       url: 'https://example.com',
       headers: requestHeaders,
@@ -417,6 +429,9 @@ describe('httpRequest', () => {
     expect(cookies[1]).toMatchObject({ key: 'c', value: 'd' });
     expect(cookies[2]).toMatchObject({ key: 'e', value: 'f' });
     expect(cookies[3]).toMatchObject({ key: 'g', value: 'h' });
+    if (assertionErrors.length > 0) {
+      console.error(assertionErrors.join('\n'));
+    }
     expect(assertions.every((id) => id)).toBe(true);
   });
 });
