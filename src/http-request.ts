@@ -321,7 +321,7 @@ function makeRedirectUrl(previous: URL, current?: string): URL {
 }
 
 function formatResponse(response: Omit<HttpRequestResponse<any>, 'request'>) {
-  const responseData = {
+  return {
     status: response.status,
     statusMessage: response.statusMessage,
     url: isInvalidUrl(response.url) ? '[INVALID URL]' : response.url.toString(),
@@ -337,7 +337,6 @@ function formatResponse(response: Omit<HttpRequestResponse<any>, 'request'>) {
       ? limitString('' + response.data, 2000)
       : response.data,
   };
-  return JSON.stringify(responseData, null, 2);
 }
 
 function formatRequest(request: HttpRequestResponse<any>['request'], hidePassword: string) {
@@ -350,13 +349,13 @@ function formatRequest(request: HttpRequestResponse<any>['request'], hidePasswor
     ? '[STREAM]'
     : isBinary(request.formattedData)
     ? '[BINARY]'
-    : limitString(request.data, 2000);
+    : limitString(request.formattedData, 2000);
 
   if (typeof hidePassword === 'string' && hidePassword.length > 0) {
     dataString = dataString.replace(hidePassword, '[PASSWORD]');
     formattedDataString = formattedDataString.replace(hidePassword, '[PASSWORD]');
   }
-  const requestData = {
+  return {
     method: request.method,
     url: request.url.toString(),
     timeout: request.timeout,
@@ -366,7 +365,6 @@ function formatRequest(request: HttpRequestResponse<any>['request'], hidePasswor
     headers: request.headers,
     cookies: request.cookies,
   };
-  return JSON.stringify(requestData, null, 2);
 }
 
 export async function httpRequest<T extends HttpRequestDataType, R extends HttpResponseType>(
@@ -396,7 +394,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       if (responseData.redirectCount === 0) {
         logger.debug({
           message: `${nodeRequestParams.method} ${limitString(url, 200)}`,
-          details: formatRequest(responseData.request, hidePassword),
+          details: JSON.stringify(formatRequest(responseData.request, hidePassword), null, 2),
         });
       }
       const request = makeRequest(redirectUrl, nodeRequestParams, responseCallback);
@@ -469,7 +467,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
 
     logger.debug({
       message: `RESPONSE ${limitString(redirectUrl, 200)} (${responseData.status})`,
-      details: formatResponse(responseData),
+      details: JSON.stringify(formatResponse(responseData), null, 2),
     });
     return responseData;
   } catch (err) {
