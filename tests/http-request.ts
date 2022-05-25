@@ -6,7 +6,7 @@ import { isHttpRequestError } from '../src/http-request';
 import { httpRequest } from '../src';
 import { Readable, Writable } from 'node:stream';
 import { collectStreamToString, makeCallbackPromise } from '../src/utils';
-import { CookieJar, makeCookie } from '../src/cookie';
+import { CookieJar, makeCookie } from '../src/cookies';
 
 function createReadableStream(str: string | Buffer, chunkSize = 10): Readable {
   let start = 0;

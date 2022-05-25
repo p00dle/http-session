@@ -1,6 +1,6 @@
 import type { RequestOptions } from 'node:https';
 import type { Readable } from 'node:stream';
-import { CookieJar } from './cookie';
+import { CookieJar } from './cookies/jar';
 import { URL } from 'node:url';
 import { request as nodeHttpsRequest } from 'node:https';
 import { request as nodeHttpRequest } from 'node:http';
@@ -96,7 +96,10 @@ function formatData<T extends HttpRequestDataType>(
   throw new TypeError(`Invalid dataType: ${dataType}`);
 }
 
-function makeRequestParams<T extends HttpRequestDataType>(options: HttpRequestOptions<T, any>): HttpRequestParams {
+function makeRequestParams<T extends HttpRequestDataType>(
+  options: HttpRequestOptions<T, any>,
+  url: URL
+): HttpRequestParams {
   return {
     dataType: (options.dataType || 'raw') as T,
     responseType: options.responseType || 'string',
@@ -105,6 +108,8 @@ function makeRequestParams<T extends HttpRequestDataType>(options: HttpRequestOp
     logger: noOpLogger,
     makeHttpRequest: options._request || nodeHttpRequest,
     makeHttpsRequest: options._request || nodeHttpsRequest,
+    host: options.host || options.previousUrl ? makeURL(options.previousUrl).host : url.host,
+    origin: options.previousUrl ? makeURL(options.previousUrl).origin : url.origin,
   };
 }
 
@@ -143,15 +148,16 @@ function makeHeaders(
     addRefererToHeaders(previousUrl, headers);
   }
   if (!headers['Origin']) {
-    headers['Origin'] = url.origin;
+    headers['Origin'] = requestParams.origin;
   }
   if (!headers['Host']) {
-    headers['Host'] = url.hostname;
+    headers['Host'] = requestParams.host;
   }
   if (!headers['User-Agent']) {
     headers['User-Agent'] = DEFAULT_USER_AGENT;
   }
-  cookieJar.addCookiesToHeaders(url, headers, previousUrl);
+  const cookies = cookieJar.getRequestCookies(url, requestParams.host);
+  headers.Cookie = headers.Cookie ? headers.Cookie.concat(cookies) : cookies;
   return headers;
 }
 
@@ -160,7 +166,7 @@ function makeOptions<T extends HttpRequestDataType>(
 ): [HttpRequestParams, CookieJar, URL, { headers: HttpHeaders; method: HttpMethod } & RequestOptions, string] {
   const url = makeURL(options.url);
   const previousUrl = options.previousUrl ? makeURL(options.previousUrl) : undefined;
-  const requestParams = makeRequestParams(options);
+  const requestParams = makeRequestParams(options, url);
   const cookieJar = options.cookieJar || new CookieJar();
   if (options.cookies) cookieJar.addCookies(options.cookies);
   const headers = makeHeaders(
@@ -373,7 +379,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       nodeRequestParams.headers.Host = redirectUrl.hostname;
       nodeRequestParams.headers.Origin = redirectUrl.origin;
       responseData.redirectUrls.push(redirectUrl.toString());
-      nodeRequestParams.headers = cookieJar.addCookiesToHeaders(redirectUrl, nodeRequestParams.headers, originalUrl);
+      nodeRequestParams.headers.Cookie = cookieJar.getRequestCookies(redirectUrl, originalUrl.host);
       logger.debug({
         message: `REDIRECT (${response.statusCode}) TO ${limitString(redirectUrl, 200)}`,
         details: `FROM: ${limitString(originalUrl, 1000)}\nTO: ${limitString(redirectUrl, 1000)}`,

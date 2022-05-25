@@ -1,6 +1,6 @@
 import type { Readable, Writable } from 'node:stream';
 import type { Agent, RequestOptions } from 'node:https';
-import type { CookieJar } from '../cookie';
+import type { CookieJar } from '../cookies/jar';
 import type { Logger } from './logger';
 import type { Cookie } from './cookies';
 
@@ -46,6 +46,7 @@ export interface HttpRequestOptions<T extends HttpRequestDataType, R extends Htt
   cookieJar?: CookieJar;
   maxRedirects?: number;
   logger?: Logger;
+  host?: string;
   _request?: MakeHttpRequest;
 }
 
@@ -63,6 +64,8 @@ export interface HttpRequestParams {
   formattedData: Readable | string | Buffer | Uint8Array;
   maxRedirects: number;
   logger: Logger;
+  host: string;
+  origin: string;
   makeHttpRequest: MakeHttpRequest;
   makeHttpsRequest: MakeHttpRequest;
 }

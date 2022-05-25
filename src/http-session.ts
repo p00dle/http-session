@@ -10,7 +10,7 @@ import type { Logger } from './types/logger';
 import type { Cookie } from './types/cookies';
 import { httpRequest } from './http-request';
 import { Agent } from 'https';
-import { CookieJar } from './cookie';
+import { CookieJar } from './cookies/jar';
 import { errorToLog, noOpLogger } from './logger';
 
 export interface HttpSessionObject<P> {
