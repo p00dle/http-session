@@ -8,4 +8,5 @@ export interface Cookie {
   expires?: number;
   secure?: boolean;
   sameSite: 'Strict' | 'Lax' | 'None';
+  hasInvalidAttributes?: boolean;
 }

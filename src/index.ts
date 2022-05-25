@@ -12,4 +12,4 @@ export type { HttpSessionObject } from './http-session';
 
 export { httpRequest } from './http-request';
 export { HttpSession } from './http-session';
-export { CookieJar } from './cookie';
+export { CookieJar } from './cookies/jar';
