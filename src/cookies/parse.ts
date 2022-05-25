@@ -22,7 +22,7 @@ export function parseCookie(hostUrl: URL, cookieStr: string): Cookie {
     hasInvalidAttributes: false,
   };
   cookieStr
-    .split('; ')
+    .split(/;\s*/)
     .filter((str) => str.length > 0)
     .forEach((str) => {
       if (/^secure$/i.test(str)) {
