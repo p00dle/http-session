@@ -341,21 +341,28 @@ function formatResponse(response: Omit<HttpRequestResponse<any>, 'request'>) {
 }
 
 function formatRequest(request: HttpRequestResponse<any>['request'], hidePassword: string) {
+  let dataString = isReadableStream(request.data)
+    ? '[STREAM]'
+    : isBinary(request.data)
+    ? '[BINARY]'
+    : limitString(typeof request.data === 'string' ? request.data : JSON.stringify(request.data), 2000);
+  let formattedDataString = isReadableStream(request.formattedData)
+    ? '[STREAM]'
+    : isBinary(request.formattedData)
+    ? '[BINARY]'
+    : limitString(request.data, 2000);
+
+  if (typeof hidePassword === 'string' && hidePassword.length > 0) {
+    dataString = dataString.replace(hidePassword, '[PASSWORD]');
+    formattedDataString = formattedDataString.replace(hidePassword, '[PASSWORD]');
+  }
   const requestData = {
     method: request.method,
     url: request.url.toString(),
     timeout: request.timeout,
     dataType: request.dataType,
-    data: isReadableStream(request.data)
-      ? '[STREAM]'
-      : isBinary(request.data)
-      ? '[BINARY]'
-      : limitString('' + request.data, 2000).replace(hidePassword, '[PASSWORD]'),
-    formattedData: isReadableStream(request.data)
-      ? '[STREAM]'
-      : isBinary(request.data)
-      ? '[BINARY]'
-      : '' + limitString('' + request.data, 2000),
+    data: dataString,
+    formattedData: formattedDataString,
     headers: request.headers,
     cookies: request.cookies,
   };
@@ -440,20 +447,26 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       response.pipe(decompress);
       dataStream = decompress;
     }
-
-    let data =
+    const data =
       responseType === 'stream'
         ? dataStream
         : responseType === 'binary'
         ? await collectStreamToBuffer(dataStream)
         : await collectStreamToString(dataStream);
-    if (responseType === 'json') data = JSON.parse(data as string);
     responseData.status = response.statusCode as number;
     responseData.statusMessage = response.statusMessage || '';
     responseData.url = redirectUrl;
     responseData.cookies = cookies;
     responseData.headers = headers;
     responseData.data = data as any;
+    if (responseType === 'json') {
+      try {
+        responseData.data = JSON.parse(data as string);
+      } catch {
+        throw new Error('Unable to parse response data as JSON');
+      }
+    }
+
     logger.debug({
       message: `RESPONSE ${limitString(redirectUrl, 200)} (${responseData.status})`,
       details: formatResponse(responseData),
