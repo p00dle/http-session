@@ -18,7 +18,7 @@ import type {
   HttpResponseType,
   ResponseStream,
 } from './types/http-request';
-import { createGzip, createBrotliDecompress, createDeflate } from 'node:zlib';
+import { createGunzip, createBrotliDecompress, createInflate } from 'node:zlib';
 /* Resources
 https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
 https://nodejs.org/api/http.html#httprequestoptions-callback
@@ -432,11 +432,11 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       response.pipe(decompress);
       dataStream = decompress;
     } else if (contentEncoding === 'deflate') {
-      const decompress = createDeflate();
+      const decompress = createInflate();
       response.pipe(decompress);
       dataStream = decompress;
     } else if (contentEncoding === 'gzip') {
-      const decompress = createGzip();
+      const decompress = createGunzip();
       response.pipe(decompress);
       dataStream = decompress;
     }
