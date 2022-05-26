@@ -82,7 +82,7 @@ describe('HttpSession', () => {
     removeStatusChangeListener();
     expect(sessionData).toEqual({ params: { str: 'abc', num: 123 }, defaultHeaders: {}, cookies: [] });
     expect(sessionParams).toEqual({ str: 'abc', num: 123 });
-    expect(statuses).toEqual(['Logging In', 'In Use', 'Ready']);
+    expect(statuses).toEqual(['Logged Out', 'Logging In', 'In Use', 'Ready']);
     expect(testSession.validateCalledWithParams).toEqual(suppliedParams);
     expect(testSession.loginCalledWithParams).toEqual(suppliedParams);
     await testSession.forceStop();
@@ -191,6 +191,7 @@ describe('HttpSession', () => {
     removeStatusChangeListener();
     await testSession.forceStop();
     expect(statuses).toEqual([
+      'Logged Out',
       'Logging In',
       'In Use',
       'Logging Out',

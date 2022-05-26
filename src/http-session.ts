@@ -64,6 +64,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
   private statusChangeListeners: ((data: HttpSessionStatusData) => void)[] = [];
   public onStatusChange(listener: (data: HttpSessionStatusData) => void): () => void {
     this.statusChangeListeners.push(listener);
+    listener(this.makeStatus());
     return () => {
       const index = this.statusChangeListeners.indexOf(listener);
       if (index >= 0) {
@@ -78,9 +79,21 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       cookies: this.cookieJar.toJSON(),
     };
   }
+  private makeStatus(): HttpSessionStatusData {
+    return {
+      status: this.status,
+      uptimeSince: this.uptimeSince,
+      lastError: this.lastError,
+      inQueue: this.requestCount,
+      error: this.error,
+      isInitialised: this.isInitialised,
+    };
+  }
+
   private getParams() {
     return this.params as Required<P>;
   }
+
   private changeStatus(params: {
     status?: HttpSession['status'];
     uptimeSince?: number | null;
@@ -91,17 +104,10 @@ export abstract class HttpSession<P = { username: string; password: string }> {
     if (params.uptimeSince !== undefined) this.uptimeSince = params.uptimeSince;
     if (params.lastError !== undefined) this.lastError = params.lastError;
     if (params.error !== undefined) this.error = params.error;
-    this.statusChangeListeners.forEach((listener) => {
-      listener({
-        status: this.status,
-        uptimeSince: this.uptimeSince,
-        lastError: this.lastError,
-        inQueue: this.requestCount,
-        error: this.error,
-        isInitialised: this.isInitialised,
-      });
-    });
+    const status = this.makeStatus();
+    this.statusChangeListeners.forEach((fn) => fn(status));
   }
+
   public async forceStop() {
     this.stopHeartbeat();
     this.lastUrl = undefined;
