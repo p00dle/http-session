@@ -28,7 +28,7 @@ export interface HttpSessionObject<P> {
   invalidate: (error: string) => Promise<void>;
 }
 
-interface HttpSessionStatusData {
+export interface HttpSessionStatusData {
   status: HttpSession['status'];
   uptimeSince: number | null;
   lastError: number | null;

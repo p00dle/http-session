@@ -8,7 +8,7 @@ export type {
   HttpResponseDataType,
   HttpResponseType,
 } from './types/http-request';
-export type { HttpSessionObject } from './http-session';
+export type { HttpSessionObject, HttpSessionStatusData } from './http-session';
 
 export { httpRequest } from './http-request';
 export { HttpSession } from './http-session';
