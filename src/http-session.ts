@@ -310,7 +310,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       }
     });
   }
-  private async invalidateSession(errorMessage: string) {
+  public async invalidateSession(errorMessage: string) {
     this.changeStatus({ status: 'Error', error: errorMessage, lastError: Date.now() });
     this.isInitialised = false;
   }
