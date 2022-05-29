@@ -359,7 +359,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       }
     }
   }
-  protected logger: Logger = noOpLogger;
+  public logger: Logger = noOpLogger;
   protected cookieJar = new CookieJar();
   protected httpAgent = new Agent();
 }
