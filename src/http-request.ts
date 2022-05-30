@@ -106,7 +106,7 @@ function makeRequestParams<T extends HttpRequestDataType>(
     responseType: options.responseType || 'string',
     maxRedirects: options.maxRedirects || 5,
     formattedData: formatData(options.dataType || 'raw', options.data),
-    logger: noOpLogger,
+    logger: options.logger || noOpLogger,
     makeHttpRequest: options._request || nodeHttpRequest,
     makeHttpsRequest: options._request || nodeHttpsRequest,
     host: options.host || options.previousUrl ? makeURL(options.previousUrl).host : url.host,
