@@ -11,7 +11,8 @@ import type { Cookie } from './types/cookies';
 import { httpRequest } from './http-request';
 import { Agent } from 'https';
 import { CookieJar } from './cookies/jar';
-import { errorToLog, noOpLogger } from './logger';
+import { parseError } from './lib/parseError';
+import { noOpLogger } from './lib/noOpLogger';
 
 type CancelTimeout = () => any;
 
@@ -337,7 +338,8 @@ export abstract class HttpSession<P = { username: string; password: string }> {
         if (!settled) {
           settled = true;
           cancelTimeout();
-          this.logger.error(errorToLog(err));
+          const [message, details] = parseError(err);
+          this.logger.error(message, details);
           reject(`Error initialising session; see logs for details`);
         }
       }

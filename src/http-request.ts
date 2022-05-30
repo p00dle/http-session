@@ -4,8 +4,7 @@ import { CookieJar } from './cookies/jar';
 import { URL } from 'node:url';
 import { request as nodeHttpsRequest } from 'node:https';
 import { request as nodeHttpRequest } from 'node:http';
-import { noOpLogger } from './logger';
-import { asyncPipeline, collectStreamToBuffer, collectStreamToString, limitString, makeCallbackPromise } from './utils';
+import { noOpLogger } from './lib/noOpLogger';
 import type {
   ErrorWithStack,
   HttpRequestError,
@@ -19,6 +18,11 @@ import type {
   ResponseStream,
 } from './types/http-request';
 import { createGunzip, createBrotliDecompress, createInflate } from 'node:zlib';
+import { limitString } from './lib/limitString';
+import { asyncPipeline } from './lib/asyncPipeline';
+import { callbackPromise } from './lib/callbackPromise';
+import { collectStreamToBuffer } from './lib/collectStreamToBuffer';
+import { collectStreamToString } from './lib/collectStreamToString';
 /* Resources
 https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
 https://nodejs.org/api/http.html#httprequestoptions-callback
@@ -390,12 +394,12 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
         nodeRequestParams.headers['Content-Length'] = 0;
         delete nodeRequestParams.headers['Content-Type'];
       }
-      const [responsePromise, responseCallback] = makeCallbackPromise<ResponseStream>();
+      const [responsePromise, responseCallback] = callbackPromise<ResponseStream>();
       if (responseData.redirectCount === 0) {
-        logger.debug({
-          message: `${nodeRequestParams.method} ${limitString(url, 200)}`,
-          details: JSON.stringify(formatRequest(responseData.request, hidePassword), null, 2),
-        });
+        logger.debug(
+          `${nodeRequestParams.method} ${limitString(url, 200)}`,
+          JSON.stringify(formatRequest(responseData.request, hidePassword), null, 2)
+        );
       }
       const request = makeRequest(redirectUrl, nodeRequestParams, responseCallback);
       if (keepMethodAndData) {
@@ -420,10 +424,10 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       nodeRequestParams.headers.Origin = redirectUrl.origin;
       responseData.redirectUrls.push(redirectUrl.toString());
       nodeRequestParams.headers.Cookie = cookieJar.getRequestCookies(redirectUrl, originalUrl.host);
-      logger.debug({
-        message: `REDIRECT (${response.statusCode}) TO ${limitString(redirectUrl, 200)}`,
-        details: `FROM: ${limitString(originalUrl, 1000)}\nTO: ${limitString(redirectUrl, 1000)}`,
-      });
+      logger.debug(
+        `REDIRECT (${response.statusCode}) TO ${limitString(redirectUrl, 200)}`,
+        `FROM: ${limitString(originalUrl, 1000)}\nTO: ${limitString(redirectUrl, 1000)}`
+      );
       keepMethodAndData = response.statusCode === 307 || response.statusCode === 308;
     } while (responseData.redirectCount++ < maxRedirects);
     if (responseData.redirectCount >= maxRedirects) {
@@ -465,10 +469,10 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       }
     }
 
-    logger.debug({
-      message: `RESPONSE ${limitString(redirectUrl, 200)} (${responseData.status})`,
-      details: JSON.stringify(formatResponse(responseData), null, 2),
-    });
+    logger.debug(
+      `RESPONSE (${responseData.status}) ${limitString(redirectUrl, 200)} `,
+      JSON.stringify(formatResponse(responseData), null, 2)
+    );
     return responseData;
   } catch (err) {
     if (isError(err)) {

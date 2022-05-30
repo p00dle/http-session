@@ -5,8 +5,9 @@ import type { Cookie } from '../src/types/cookies';
 import { isHttpRequestError } from '../src/http-request';
 import { httpRequest } from '../src';
 import { Readable, Writable } from 'node:stream';
-import { collectStreamToString, makeCallbackPromise } from '../src/utils';
 import { CookieJar, makeCookie } from '../src/cookies';
+import { callbackPromise } from '../src/lib/callbackPromise';
+import { collectStreamToString } from '../src/lib/collectStreamToString';
 
 function createReadableStream(str: string | Buffer, chunkSize = 10): Readable {
   let start = 0;
@@ -126,7 +127,7 @@ describe('httpRequest', () => {
   it('works with simple POST', async () => {
     const requestData = 'UNFORMATTED_DATA';
     const responseData = 'abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise();
     const makeHttpRequest = mockHttpRequestFactory({
       returns: responseData,
       statusCode: 200,
@@ -144,7 +145,7 @@ describe('httpRequest', () => {
   });
   it('stringifies data when dataType=raw and data is not a string', async () => {
     const requestData = ['a', 'b', 'c'];
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise();
     const makeHttpRequest = mockHttpRequestFactory({
       returns: '',
       statusCode: 200,
@@ -162,7 +163,7 @@ describe('httpRequest', () => {
   it('works with stream request data', async () => {
     const requestData = 'UNFORMATTED_DATA';
     const readable = createReadableStream(requestData, 1);
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise();
     const makeHttpRequest = mockHttpRequestFactory({
       returns: '',
       statusCode: 200,
@@ -193,7 +194,7 @@ describe('httpRequest', () => {
     expect(receveivedData).toBe(responseData);
   });
   it('formats form data correctly', async () => {
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise();
     const makeHttpRequest = mockHttpRequestFactory({
       returns: '',
       statusCode: 200,
@@ -217,7 +218,7 @@ describe('httpRequest', () => {
   it('sends and receives binary data', async () => {
     const requestBuffer = new Uint8Array(10).fill(2);
     const responseBuffer = Buffer.from('abcdefg');
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise<any>();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise<any>();
     const makeHttpRequest = mockHttpRequestFactory({
       returns: responseBuffer,
       statusCode: 200,
@@ -247,7 +248,7 @@ describe('httpRequest', () => {
       subObj: { a: 1, b: 2 },
     };
     const jsonString = JSON.stringify(jsonObject);
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise();
     const makeHttpRequest = mockHttpRequestFactory({
       returns: jsonString,
       statusCode: 500,
@@ -266,14 +267,14 @@ describe('httpRequest', () => {
     expect(response.data).toEqual(jsonObject);
   });
   it('sends an empty string when data is undefined and dataType is json', async () => {
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise();
     const makeHttpRequest = mockHttpRequestFactory({ returns: '', statusCode: 500, onDataReceived: dataReceivedCb });
     await httpRequest({ _request: makeHttpRequest, method: 'POST', url: 'https://example.com', dataType: 'json' });
     const receivedData = await dataReceivedPromise;
     expect(receivedData).toBe('');
   });
   it('sends an empty string when data is undefined and dataType is form', async () => {
-    const [dataReceivedPromise, dataReceivedCb] = makeCallbackPromise();
+    const [dataReceivedPromise, dataReceivedCb] = callbackPromise();
     const makeHttpRequest = mockHttpRequestFactory({ returns: '', statusCode: 500, onDataReceived: dataReceivedCb });
     await httpRequest({ _request: makeHttpRequest, method: 'POST', url: 'https://example.com', dataType: 'form' });
     const receivedData = await dataReceivedPromise;
