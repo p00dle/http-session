@@ -13,6 +13,8 @@ import { Agent } from 'https';
 import { CookieJar } from './cookies/jar';
 import { errorToLog, noOpLogger } from './logger';
 
+type CancelTimeout = () => any;
+
 export interface HttpSessionObject<P> {
   getParams: () => P;
   request: <T extends HttpRequestDataType, R extends HttpResponseType>(
@@ -26,6 +28,7 @@ export interface HttpSessionObject<P> {
   };
   reportLockout: () => Promise<void>;
   invalidate: (error: string) => Promise<void>;
+  wasReleased: boolean;
 }
 
 export interface HttpSessionStatusData {
@@ -59,8 +62,15 @@ export abstract class HttpSession<P = { username: string; password: string }> {
   private requestQueue: { resolve: (val: HttpSessionObject<P>) => any; reject: (err: unknown) => any }[] = [];
   private loginPromise: Promise<any> | null = null;
   private logoutPromise: Promise<any> | null = null;
-  private status: 'Logged Out' | 'Logging In' | 'Ready' | 'In Use' | 'Logging Out' | 'Error' | 'Locked Out' =
-    this.login || this.validateParams ? 'Logged Out' : 'Ready';
+  private status:
+    | 'Logged Out'
+    | 'Logging In'
+    | 'Ready'
+    | 'In Use'
+    | 'Logging Out'
+    | 'Error'
+    | 'Locked Out'
+    | 'Shutdown' = this.login || this.validateParams ? 'Logged Out' : 'Ready';
   private statusChangeListeners: ((data: HttpSessionStatusData) => void)[] = [];
   public onStatusChange(listener: (data: HttpSessionStatusData) => void): () => void {
     this.statusChangeListeners.push(listener);
@@ -70,6 +80,18 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       if (index >= 0) {
         this.statusChangeListeners.splice(index, 1);
       }
+    };
+  }
+  private timeouts: { handle: NodeJS.Timeout; cb: () => any; callOnShutdown: boolean }[] = [];
+  private setTimeout(cb: () => any, ms: number, callOnShutdown = false): CancelTimeout {
+    const handle = setTimeout(cb, ms);
+    const timeoutCallback = { handle, cb, callOnShutdown };
+    this.timeouts.push(timeoutCallback);
+    return (callback?: boolean) => {
+      const index = this.timeouts.indexOf(timeoutCallback);
+      if (index >= 0) this.timeouts.splice(index, 1);
+      clearTimeout(handle);
+      if (callback) cb();
     };
   }
   private serialize() {
@@ -108,7 +130,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
     this.statusChangeListeners.forEach((fn) => fn(status));
   }
 
-  public async forceStop() {
+  public async shutdown() {
     this.stopHeartbeat();
     this.lastUrl = undefined;
     if (this.status !== 'Error') {
@@ -120,7 +142,11 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       }
     }
     this.isInitialised = false;
-    this.changeStatus({ status: 'Logged Out', error: undefined, uptimeSince: null, lastError: null });
+    this.changeStatus({ status: 'Shutdown', error: undefined, uptimeSince: null, lastError: null });
+    this.timeouts.forEach(({ handle, cb, callOnShutdown }) => {
+      clearTimeout(handle);
+      if (callOnShutdown) cb();
+    });
   }
   public setParams(params: Partial<P>) {
     this.params = { ...this.params, ...params };
@@ -129,30 +155,31 @@ export abstract class HttpSession<P = { username: string; password: string }> {
     this.defaultHeaders = headers;
   }
   private getSessionObject(): HttpSessionObject<P> {
-    let sessionReleased = false;
     const wrap = <A extends any[], R>(
       fnName: string,
       fn: (...args: A) => R,
       releaseAfter?: boolean
     ): ((...args: A) => R) => {
       return (...args) => {
-        if (sessionReleased) {
+        if (sessionObject.wasReleased) {
           throw new Error(`calling ${fnName} failed because session has already been released`);
         } else if (this.status !== 'In Use') {
           throw new Error(`calling ${fnName} failed because session is in status ${this.status}`);
         }
-        if (releaseAfter) sessionReleased = true;
+        if (releaseAfter) sessionObject.wasReleased = true;
         return fn(...args);
       };
     };
-    return {
+    const sessionObject = {
       getParams: wrap('getParams', () => this.getParams()),
       request: wrap('request', (options) => this.request(options)),
       release: wrap('release', () => this.releaseSession(), true),
       serialize: wrap('serialize', () => this.serialize()),
       invalidate: wrap('invalidate', (err) => this.invalidateSession(err), true),
       reportLockout: wrap('reportLockout', () => this.reportLockout(), true),
+      wasReleased: false,
     };
+    return sessionObject;
   }
   private logoutWrapper(): Promise<void> {
     if (!this.logoutPromise) {
@@ -197,7 +224,8 @@ export abstract class HttpSession<P = { username: string; password: string }> {
               if (this.status === 'Locked Out' && this.lockoutTime && this.lastError) {
                 const waitFor = this.lastError + this.lockoutTime - Date.now();
                 if (waitFor > 0) {
-                  await new Promise((resolve) => setTimeout(resolve, waitFor));
+                  await new Promise<void>((resolve) => this.setTimeout(resolve, waitFor, true));
+                  if ((this.status as 'Locked Out' | 'Shutdown') === 'Shutdown') reject('Session has shutdown');
                 }
               }
               // if (this.logoutPromise) {
@@ -275,25 +303,29 @@ export abstract class HttpSession<P = { username: string; password: string }> {
     }
     return new Promise<HttpSessionObject<P>>(async (resolve, reject) => {
       let settled = false;
-      const timeoutHandle = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          reject(`Timed out waiting for session after ${timeout}ms`);
-        }
-      }, timeout);
+      const cancelTimeout = this.setTimeout(
+        () => {
+          if (!settled) {
+            settled = true;
+            reject(`Timed out waiting for session after ${timeout}ms`);
+          }
+        },
+        timeout,
+        true
+      );
       this.requestQueue.push({
         resolve: (val) => {
           if (!settled) {
             this.changeStatus({ status: 'In Use' });
             settled = true;
-            clearTimeout(timeoutHandle);
+            cancelTimeout();
             resolve(val);
           }
         },
         reject: (err) => {
           if (!settled) {
             settled = true;
-            clearTimeout(timeoutHandle);
+            cancelTimeout();
             reject(err);
           }
         },
@@ -304,7 +336,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
       } catch (err) {
         if (!settled) {
           settled = true;
-          clearTimeout(timeoutHandle);
+          cancelTimeout();
           this.logger.error(errorToLog(err));
           reject(`Error initialising session; see logs for details`);
         }

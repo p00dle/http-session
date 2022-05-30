@@ -85,7 +85,7 @@ describe('HttpSession', () => {
     expect(statuses).toEqual(['Logged Out', 'Logging In', 'In Use', 'Ready']);
     expect(testSession.validateCalledWithParams).toEqual(suppliedParams);
     expect(testSession.loginCalledWithParams).toEqual(suppliedParams);
-    await testSession.forceStop();
+    await testSession.shutdown();
     expect(testSession.logoutCalledWithParams).toEqual(suppliedParams);
   });
   it('allow multiple requests when specified', async () => {
@@ -161,7 +161,7 @@ describe('HttpSession', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     let urlsLength = heartbeatSession.urls.length;
     expect(urlsLength).toBeGreaterThan(1);
-    await heartbeatSession.forceStop();
+    await heartbeatSession.shutdown();
     urlsLength = heartbeatSession.urls.length;
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(heartbeatSession.urls).toHaveLength(urlsLength);
@@ -189,7 +189,7 @@ describe('HttpSession', () => {
     const session2 = await session2Promise;
     await session2.release();
     removeStatusChangeListener();
-    await testSession.forceStop();
+    await testSession.shutdown();
     expect(statuses).toEqual([
       'Logged Out',
       'Logging In',
@@ -234,7 +234,7 @@ describe('HttpSession', () => {
     } catch (err) {
       loginError = err;
     }
-    await testSession.forceStop();
+    await testSession.shutdown();
     removeStatusChangeListener();
     expect(listenerErrors[0]).toMatch('login_error');
     expect(listenerErrors[1]).toMatch('Unknown');
@@ -266,11 +266,11 @@ describe('HttpSession', () => {
       }
     );
     await session1.release();
-    await testSession.forceStop();
     try {
       await session2Promise;
     } catch {}
     removeStatusChangeListener();
+    await testSession.shutdown();
     expect(listenerError).toMatch('login_error');
     expect(loginError).not.toBeNull();
   });
@@ -300,7 +300,7 @@ describe('HttpSession', () => {
     await session.release();
     const session2 = await testSession.requestSession();
     await session2.release();
-    await testSession.forceStop();
+    await testSession.shutdown();
     removeStatusChangeListener();
     expect(listenerErrors[0]).toMatch('logout_error');
     expect(listenerErrors[1]).toMatch('Unknown');
@@ -310,7 +310,7 @@ describe('HttpSession', () => {
     const session1 = await testSession.requestSession();
     const session2Promise = testSession.requestSession();
     await session1.release();
-    await testSession.forceStop();
+    await testSession.shutdown();
     const session2 = await session2Promise;
     expect(typeof session2.release).toBe('function');
   });
@@ -319,7 +319,7 @@ describe('HttpSession', () => {
     const session = await testSession.requestSession();
     const waitRejectionError = await new Promise(async (resolve) => {
       testSession.requestSession().then(() => undefined, resolve);
-      await testSession.forceStop();
+      await testSession.shutdown();
     });
     expect(waitRejectionError).not.toBeNull();
     let requestError: any = null;
@@ -354,7 +354,7 @@ describe('HttpSession', () => {
     await session.invalidate('');
     await testSession.requestSession();
     expect(testSession.loginCalledWithParams).toEqual({ str: 'def' });
-    await testSession.forceStop();
+    await testSession.shutdown();
   });
   it('reportLockout will force the next request to wait until lockout runs out', async () => {
     const testSession = new TestHttpSession();
@@ -366,7 +366,7 @@ describe('HttpSession', () => {
     await session.reportLockout();
     await testSession.requestSession();
     expect(Date.now() - startTime).toBeGreaterThanOrEqual(100);
-    await testSession.forceStop();
+    await testSession.shutdown();
   });
 });
 
