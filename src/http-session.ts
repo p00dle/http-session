@@ -41,7 +41,7 @@ export abstract class HttpSession<P = { username: string; password: string }> {
   protected validateParams?(params: P): any;
   protected login?(params: P): Promise<void>;
   protected logout?(params: P): Promise<void>;
-  protected _makeHttpRequest?: MakeHttpRequest;
+  public _makeHttpRequest?: MakeHttpRequest;
   protected alwaysRenew?: boolean;
   protected lockoutTime?: number;
   protected heartbeatURL?: string;

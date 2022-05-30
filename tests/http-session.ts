@@ -24,23 +24,23 @@ function waitFor(n: number): Promise<void> {
 }
 
 class TestHttpSession extends HttpSession<{ str: string; num: number }> {
-  public loginCalledWithParams: any;
-  public logoutCalledWithParams: any;
-  public validateCalledWithParams: any;
-  protected async login(params: Required<{ str: string; num: number }>): Promise<void> {
+  loginCalledWithParams: any;
+  logoutCalledWithParams: any;
+  validateCalledWithParams: any;
+  async login(params: Required<{ str: string; num: number }>): Promise<void> {
     await waitFor(30);
     this.loginCalledWithParams = params;
   }
-  protected async logout(params: Required<{ str: string; num: number }>): Promise<void> {
+  async logout(params: Required<{ str: string; num: number }>): Promise<void> {
     await waitFor(30);
     this.logoutCalledWithParams = params;
   }
-  protected validateParams(params: { str: string; num: number }) {
+  validateParams(params: { str: string; num: number }) {
     this.validateCalledWithParams = params;
   }
-  protected allowMultipleRequests = true;
-  protected lockoutTime = 100;
-  protected _makeHttpRequest? = mockHttpRequest;
+  allowMultipleRequests = true;
+  lockoutTime = 100;
+  _makeHttpRequest? = mockHttpRequest;
 }
 
 const urlHttpRequestFactory = (urls: string[]) => {
@@ -147,10 +147,10 @@ describe('HttpSession', () => {
   });
   it('calls the heartbeat url when specified', async () => {
     class HeartbeatSession extends HttpSession {
-      public urls: string[] = [];
-      protected heartbeatInterval = 20;
-      protected heartbeatURL = 'https://heartbeat.url';
-      protected _makeHttpRequest? = urlHttpRequestFactory(this.urls);
+      urls: string[] = [];
+      heartbeatInterval = 20;
+      heartbeatURL = 'https://heartbeat.url';
+      _makeHttpRequest? = urlHttpRequestFactory(this.urls);
     }
     const heartbeatSession = new HeartbeatSession();
     expect(heartbeatSession.urls).toHaveLength(0);
