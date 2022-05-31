@@ -35,34 +35,44 @@ export interface CredentialsData {
   password: string | null;
 }
 
-export interface HttpSessionObject<P, S> {
-  getParams: () => P;
+export interface HttpSessionObject<S> {
   getState: () => S;
+  setState: (state: Partial<S>) => any;
   request: <T extends HttpRequestDataType, R extends HttpResponseType>(
     options: HttpRequestOptions<T, R>
   ) => Promise<HttpRequestResponse<R>>;
   release: () => Promise<void>;
   serialize: () => {
-    params: P;
+    state: S;
     defaultHeaders: HttpHeaders;
     cookies: Cookie[];
   };
   reportLockout: () => Promise<void>;
-  invalidate: (error: string) => Promise<void>;
+  invalidate: (error?: string) => Promise<void>;
   wasReleased: boolean;
 }
 
-export interface HttpSessionParams<P, S> {
+export interface LoginMethods<S> {
+  setState: (state: Partial<S>) => any;
+  setDefaultHeaders: (headers: HttpHeaders) => any;
+  addCookies: (cookies: Cookie[]) => any;
+}
+
+export interface HttpSessionParams<S> {
   name: string;
-  params: P;
-  login: ((params: P & CredentialsData) => any) | null;
-  logout: ((params: P, state: S) => any) | null;
+  state: S;
+  login: ((params: S & CredentialsData) => any) | null;
+  logout: ((params: S) => any) | null;
   logger: Logger;
   alwaysRenew: boolean;
   lockoutTimeMs: number;
+  defaultHeaders: HttpHeaders;
+  cookies: Cookie[];
   heartbeatUrl: string | null;
   heartbeatIntervalMs: number;
   allowMultipleRequests: boolean;
   agentOptions: AgentOptions;
   _makeHttpRequest: MakeHttpRequest;
 }
+
+export type HttpSessionOptions<S = unknown> = Partial<HttpSessionParams<S>>;
