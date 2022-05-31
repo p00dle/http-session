@@ -35,6 +35,11 @@ export interface CredentialsData {
   password: string | null;
 }
 
+export interface HttpSessionSerializedData<S> {
+  state: S;
+  defaultHeaders: HttpHeaders;
+  cookies: Cookie[];
+}
 export interface HttpSessionObject<S> {
   getState: () => S;
   setState: (state: Partial<S>) => any;
@@ -42,11 +47,7 @@ export interface HttpSessionObject<S> {
     options: HttpRequestOptions<T, R>
   ) => Promise<HttpRequestResponse<R>>;
   release: () => Promise<void>;
-  serialize: () => {
-    state: S;
-    defaultHeaders: HttpHeaders;
-    cookies: Cookie[];
-  };
+  serialize: () => HttpSessionSerializedData<S>;
   reportLockout: () => Promise<void>;
   invalidate: (error?: string) => Promise<void>;
   wasReleased: boolean;

@@ -4,6 +4,7 @@ import type {
   HttpSessionParams,
   CredentialsData,
   LoginMethods,
+  HttpSessionSerializedData,
 } from './types/http-session';
 
 import type {
@@ -310,7 +311,7 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
     if ((this.status.status as 'Locked Out' | 'Shutdown') === 'Shutdown') throw 'Session has shutdown';
   }
 
-  protected serialize() {
+  protected serialize(): HttpSessionSerializedData<S> {
     return {
       state: this.state as S,
       defaultHeaders: this.defaultHeaders,
