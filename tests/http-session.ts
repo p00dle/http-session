@@ -1,4 +1,4 @@
-import { HttpSession } from '../src';
+import { HttpSession, HttpSessionOptions } from '../src';
 import { Readable, Writable } from 'node:stream';
 
 const mockHttpRequest = function (_url, options, callback) {
@@ -23,25 +23,28 @@ function waitFor(n: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, n));
 }
 
-class TestHttpSession extends HttpSession<{ str: string; num: number }> {
-  loginCalledWithParams: any;
-  logoutCalledWithParams: any;
-  validateCalledWithParams: any;
-  async login(params: Required<{ str: string; num: number }>): Promise<void> {
-    await waitFor(30);
-    this.loginCalledWithParams = params;
-  }
-  async logout(params: Required<{ str: string; num: number }>): Promise<void> {
-    await waitFor(30);
-    this.logoutCalledWithParams = params;
-  }
-  validateParams(params: { str: string; num: number }) {
-    this.validateCalledWithParams = params;
-  }
-  allowMultipleRequests = true;
-  lockoutTime = 100;
-  _makeHttpRequest? = mockHttpRequest;
-}
+const testHttpSessionFactory = () => {
+  const calls = {
+    login: null,
+    logout: null,
+  };
+  const session: HttpSessionOptions<any> = {
+    async login(params) {
+      await waitFor(30);
+      calls.login = params;
+    },
+    async logout(params) {
+      await waitFor(30);
+      calls.logout = params;
+    },
+    allowMultipleRequests: true,
+    lockoutTimeMs: 100,
+    _makeHttpRequest: mockHttpRequest,
+  };
+  return [calls, session];
+};
+
+const [, testSessionOptions] = testHttpSessionFactory();
 
 const urlHttpRequestFactory = (urls: string[]) => {
   function httpRequest(url, _options, callback) {
@@ -65,33 +68,35 @@ const urlHttpRequestFactory = (urls: string[]) => {
   return httpRequest;
 };
 
-class EmptySession extends HttpSession {}
-
 describe('HttpSession', () => {
-  it('validates, logs in and out', async () => {
+  it('logs in and out', async () => {
     const suppliedParams = { str: 'abc', num: 123 };
-    const testSession = new TestHttpSession();
+    const suppliedCreds = { username: 'user1', password: 'hunter2' };
+    const [calls, sessionOptions] = testHttpSessionFactory();
+    const testSession = new HttpSession(sessionOptions);
     const statuses: string[] = [];
-    testSession.setParams(suppliedParams);
-    const removeStatusChangeListener = testSession.onStatusChange((data) => statuses.push(data.status));
+    testSession.setState(suppliedParams);
+    testSession.setCredentials(suppliedCreds);
+    testSession.onStatus((data) => {
+      if (statuses[statuses.length - 1] !== data.status) statuses.push(data.status);
+    });
     const session = await testSession.requestSession();
     await session.request({ url: 'https://example.com' });
     const sessionData = session.serialize();
-    const sessionParams = session.getParams();
+    const sessionParams = session.getState();
     await session.release();
-    removeStatusChangeListener();
-    expect(sessionData).toEqual({ params: { str: 'abc', num: 123 }, defaultHeaders: {}, cookies: [] });
+    expect(sessionData).toEqual({ state: { str: 'abc', num: 123 }, defaultHeaders: {}, cookies: [] });
     expect(sessionParams).toEqual({ str: 'abc', num: 123 });
-    expect(statuses).toEqual(['Logged Out', 'Logging In', 'In Use', 'Ready']);
-    expect(testSession.validateCalledWithParams).toEqual(suppliedParams);
-    expect(testSession.loginCalledWithParams).toEqual(suppliedParams);
+    expect(statuses).toEqual(['Logged Out', 'Logging In', 'Ready', 'In Use', 'Ready']);
+    expect(calls.login).toEqual({ ...suppliedParams, ...suppliedCreds });
     await testSession.shutdown();
-    expect(testSession.logoutCalledWithParams).toEqual(suppliedParams);
+    expect(calls.logout).toEqual(suppliedParams);
+    expect(statuses).toEqual(['Logged Out', 'Logging In', 'Ready', 'In Use', 'Ready', 'Logging Out', 'Logged Out']);
   });
   it('allow multiple requests when specified', async () => {
-    const testSession = new TestHttpSession();
+    const testSession = new HttpSession(testSessionOptions);
     let mostRecentCount = 0;
-    const removeStatusChangeListener = testSession.onStatusChange((data) => (mostRecentCount = data.inQueue));
+    testSession.onStatus((data) => (mostRecentCount = data.inQueue));
     expect(mostRecentCount).toBe(0);
     const session = await testSession.requestSession();
     expect(mostRecentCount).toBe(1);
@@ -101,10 +106,9 @@ describe('HttpSession', () => {
     expect(mostRecentCount).toBe(1);
     session2.release();
     expect(mostRecentCount).toBe(0);
-    removeStatusChangeListener();
   });
   it('merges default and request headers', async () => {
-    const testSession = new TestHttpSession();
+    const testSession = new HttpSession(testSessionOptions);
     const defaultHeaders = {
       auth: 'bob:123',
       csrf: 'zzz',
@@ -120,7 +124,7 @@ describe('HttpSession', () => {
     expect(response.headers).toMatchObject({ ...defaultHeaders, ...requestHeaders });
   });
   it('throw when calling request or serialize after release but when calling getParams', async () => {
-    const testSession = new TestHttpSession();
+    const testSession = new HttpSession(testSessionOptions);
     const session = await testSession.requestSession();
     await session.release();
     let errorRequest: any = null;
@@ -137,7 +141,7 @@ describe('HttpSession', () => {
       errorSerialize = err;
     }
     try {
-      session.getParams();
+      session.getState();
     } catch (err) {
       errorGetParams = err;
     }
@@ -146,39 +150,37 @@ describe('HttpSession', () => {
     expect(errorSerialize).not.toBeNull();
   });
   it('calls the heartbeat url when specified', async () => {
-    class HeartbeatSession extends HttpSession {
-      urls: string[] = [];
-      heartbeatInterval = 20;
-      heartbeatURL = 'https://heartbeat.url';
-      _makeHttpRequest? = urlHttpRequestFactory(this.urls);
-    }
-    const heartbeatSession = new HeartbeatSession();
-    expect(heartbeatSession.urls).toHaveLength(0);
+    const urls: string[] = [];
+    const heartbeatSession = new HttpSession({
+      heartbeatUrl: 'https://heartbeat.url',
+      heartbeatIntervalMs: 20,
+      _makeHttpRequest: urlHttpRequestFactory(urls),
+    });
+    expect(urls).toHaveLength(0);
     const session = await heartbeatSession.requestSession();
     await session.request({ url: 'https://example.com' });
-    expect(heartbeatSession.urls).toHaveLength(1);
+    expect(urls).toHaveLength(1);
     await session.release();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    let urlsLength = heartbeatSession.urls.length;
+    let urlsLength = urls.length;
     expect(urlsLength).toBeGreaterThan(1);
     await heartbeatSession.shutdown();
-    urlsLength = heartbeatSession.urls.length;
+    urlsLength = urls.length;
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(heartbeatSession.urls).toHaveLength(urlsLength);
+    expect(urls).toHaveLength(urlsLength);
   });
   it('logs out after release every time when specified', async () => {
-    class AlwaysRenewSession extends HttpSession {
-      protected async login(): Promise<void> {
+    const testSession = new HttpSession({
+      async login(): Promise<void> {
         await waitFor(30);
-      }
-      protected async logout(): Promise<void> {
+      },
+      async logout(): Promise<void> {
         await waitFor(30);
-      }
-      protected alwaysRenew = true;
-    }
+      },
+      alwaysRenew: true,
+    });
     const statuses: string[] = [];
-    const testSession = new AlwaysRenewSession();
-    const removeStatusChangeListener = testSession.onStatusChange((data) => {
+    testSession.onStatus((data) => {
       if (data.status !== statuses[statuses.length - 1]) {
         statuses.push(data.status);
       }
@@ -188,35 +190,36 @@ describe('HttpSession', () => {
     await session.release();
     const session2 = await session2Promise;
     await session2.release();
-    removeStatusChangeListener();
     await testSession.shutdown();
     expect(statuses).toEqual([
       'Logged Out',
       'Logging In',
+      'Ready',
       'In Use',
       'Logging Out',
       'Logged Out',
       'Logging In',
+      'Ready',
       'In Use',
       'Logging Out',
       'Logged Out',
     ]);
   });
   it('handles login error gracefully', async () => {
-    class LoginErrorSession extends HttpSession {
-      private alreadyThrown = false;
-      protected async login(): Promise<void> {
-        if (this.alreadyThrown) {
+    let alreadyThrown = false;
+
+    const testSession = new HttpSession({
+      async login(): Promise<void> {
+        if (alreadyThrown) {
           throw 'login_error';
         } else {
-          this.alreadyThrown = true;
+          alreadyThrown = true;
           throw Error('login_error');
         }
-      }
-    }
-    const testSession = new LoginErrorSession();
+      },
+    });
     const listenerErrors: string[] = [];
-    const removeStatusChangeListener = testSession.onStatusChange(({ status, error }) => {
+    testSession.onStatus(({ status, error }) => {
       if (status === 'Error') listenerErrors.push(error);
     });
     let loginError: any = null;
@@ -235,26 +238,24 @@ describe('HttpSession', () => {
       loginError = err;
     }
     await testSession.shutdown();
-    removeStatusChangeListener();
     expect(listenerErrors[0]).toMatch('login_error');
-    expect(listenerErrors[1]).toMatch('Unknown');
+    expect(listenerErrors[1]).toMatch('login_error');
     expect(loginError).not.toBeNull();
   });
   it('handles login error when in queue and session has no logout specified', async () => {
-    class LoginErrorSession extends HttpSession {
-      private loggedInOnce = false;
-      protected async login(): Promise<void> {
+    let loggedInOnce = false;
+    const testSession = new HttpSession({
+      async login() {
         await waitFor(30);
-        if (this.loggedInOnce) {
+        if (loggedInOnce) {
           throw new Error('login_error');
         }
-        this.loggedInOnce = true;
-      }
-      protected alwaysRenew = true;
-    }
-    const testSession = new LoginErrorSession();
+        loggedInOnce = true;
+      },
+      alwaysRenew: true,
+    });
     let listenerError: any;
-    const removeStatusChangeListener = testSession.onStatusChange((data) => {
+    testSession.onStatus((data) => {
       if (data.status === 'Error') listenerError = data.error;
     });
     let loginError: any = null;
@@ -269,31 +270,29 @@ describe('HttpSession', () => {
     try {
       await session2Promise;
     } catch {}
-    removeStatusChangeListener();
     await testSession.shutdown();
     expect(listenerError).toMatch('login_error');
     expect(loginError).not.toBeNull();
   });
   it('handles logout error gracefully', async () => {
-    class LogoutErrorSession extends HttpSession {
-      private alreadyThrown = false;
-      protected async login(): Promise<void> {
+    let alreadyThrown = false;
+    const testSession = new HttpSession({
+      async login() {
         await waitFor(30);
-      }
-      protected async logout(): Promise<void> {
+      },
+      async logout() {
         await waitFor(30);
-        if (this.alreadyThrown) {
+        if (alreadyThrown) {
           throw 'logout_error';
         } else {
-          this.alreadyThrown = true;
+          alreadyThrown = true;
           throw Error('logout_error');
         }
-      }
-      protected alwaysRenew = true;
-    }
-    const testSession = new LogoutErrorSession();
+      },
+      alwaysRenew: true,
+    });
     const listenerErrors: string[] = [];
-    const removeStatusChangeListener = testSession.onStatusChange(({ status, error }) => {
+    testSession.onStatus(({ status, error }) => {
       if (status === 'Error') listenerErrors.push(error);
     });
     const session = await testSession.requestSession();
@@ -301,12 +300,11 @@ describe('HttpSession', () => {
     const session2 = await testSession.requestSession();
     await session2.release();
     await testSession.shutdown();
-    removeStatusChangeListener();
     expect(listenerErrors[0]).toMatch('logout_error');
-    expect(listenerErrors[1]).toMatch('Unknown');
+    expect(listenerErrors[1]).toMatch('logout_error');
   });
   it('queues up session requests', async () => {
-    const testSession = new EmptySession();
+    const testSession = new HttpSession();
     const session1 = await testSession.requestSession();
     const session2Promise = testSession.requestSession();
     await session1.release();
@@ -315,7 +313,7 @@ describe('HttpSession', () => {
     expect(typeof session2.release).toBe('function');
   });
   it('waiting session requests will reject when session is forced to stop and current one will reject on request and serialize', async () => {
-    const testSession = new EmptySession();
+    const testSession = new HttpSession();
     const session = await testSession.requestSession();
     const waitRejectionError = await new Promise(async (resolve) => {
       testSession.requestSession().then(() => undefined, resolve);
@@ -338,7 +336,7 @@ describe('HttpSession', () => {
     expect(serializeError).not.toBeNull();
   });
   it('waiting session request will reject when timeout is exceeded', async () => {
-    const testSession = new EmptySession();
+    const testSession = new HttpSession();
     await testSession.requestSession();
     const waitRejectionError = await new Promise(async (resolve) => {
       testSession.requestSession(20).then(() => undefined, resolve);
@@ -346,22 +344,24 @@ describe('HttpSession', () => {
     expect(waitRejectionError).not.toBeNull();
   });
   it('invalidate session will force the next request to login again', async () => {
-    const testSession = new TestHttpSession();
-    testSession.setParams({ str: 'abc' });
+    const [calls, testSessionOptions] = testHttpSessionFactory();
+    const testSession = new HttpSession(testSessionOptions);
+    testSession.setState({ str: 'abc' });
     const session = await testSession.requestSession();
-    expect(testSession.loginCalledWithParams).toEqual({ str: 'abc' });
-    testSession.setParams({ str: 'def' });
-    await session.invalidate('');
+    expect(calls.login).toMatchObject({ str: 'abc' });
+    testSession.setState({ str: 'def' });
+    await session.invalidate();
     await testSession.requestSession();
-    expect(testSession.loginCalledWithParams).toEqual({ str: 'def' });
+    expect(calls.login).toMatchObject({ str: 'def' });
     await testSession.shutdown();
   });
   it('reportLockout will force the next request to wait until lockout runs out', async () => {
-    const testSession = new TestHttpSession();
-    testSession.setParams({ str: 'abc' });
+    const [calls, testSessionOptions] = testHttpSessionFactory();
+    const testSession = new HttpSession(testSessionOptions);
+    testSession.setState({ str: 'abc' });
     const session = await testSession.requestSession();
-    expect(testSession.loginCalledWithParams).toEqual({ str: 'abc' });
-    testSession.setParams({ str: 'def' });
+    expect(calls.login).toMatchObject({ str: 'abc' });
+    testSession.setState({ str: 'def' });
     const startTime = Date.now();
     await session.reportLockout();
     await testSession.requestSession();

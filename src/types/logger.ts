@@ -1,9 +1,4 @@
-export interface LogPayload {
-  message: string;
-  details: string;
-}
-
-export type LoggerFunction = (payload: LogPayload) => any;
+export type LoggerFunction = (message: string, details?: string) => any;
 
 export interface Logger {
   debug: LoggerFunction;
