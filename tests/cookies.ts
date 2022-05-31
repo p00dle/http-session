@@ -1,5 +1,4 @@
 import {
-  CookieJar,
   makeCookie,
   getCookieHeaders,
   matchDomain,
@@ -7,6 +6,8 @@ import {
   selectCookieFactory,
   validateCookie,
 } from '../src/cookies';
+
+import { CookieJar } from '../src';
 
 describe('cookies', () => {
   const exampleUrl = new URL('https:/example.com');
