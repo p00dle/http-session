@@ -35,12 +35,12 @@ export interface CredentialsData {
   password: string | null;
 }
 
-export interface HttpSessionSerializedData<S> {
+export interface HttpSessionSerializedData<S = unknown> {
   state: S;
   defaultHeaders: HttpHeaders;
   cookies: Cookie[];
 }
-export interface HttpSessionObject<S> {
+export interface HttpSessionObject<S = unknown> {
   getState: () => S;
   setState: (state: Partial<S>) => any;
   request: <T extends HttpRequestDataType, R extends HttpResponseType>(
@@ -53,16 +53,16 @@ export interface HttpSessionObject<S> {
   wasReleased: boolean;
 }
 
-export interface LoginMethods<S> {
+export interface LoginMethods<S = unknown> {
   setState: (state: Partial<S>) => any;
   setDefaultHeaders: (headers: HttpHeaders) => any;
   addCookies: (cookies: Cookie[]) => any;
 }
 
-export interface HttpSessionParams<S> {
+export interface HttpSessionParams<S = unknown> {
   name: string;
   state: S;
-  login: ((params: S & CredentialsData) => any) | null;
+  login: ((params: S & CredentialsData, methods: LoginMethods<S>) => any) | null;
   logout: ((params: S) => any) | null;
   logger: Logger;
   alwaysRenew: boolean;
