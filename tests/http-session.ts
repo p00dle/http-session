@@ -428,13 +428,12 @@ describe('HttpSession', () => {
     let onReleaseRef: any;
     const testSession = new HttpSession({
       enhanceLoginMethods: async (ref) => {
-        console.log('enhance called');
         enhanceRef = ref;
         orderOfCalls.push('enhance');
         return {};
       },
       async login() {
-        console.log('login called');
+        //
       },
     });
     const session = await testSession.requestSession({
