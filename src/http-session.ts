@@ -63,12 +63,7 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
 
   protected allowMultipleRequests: boolean;
   protected lastUrl: URL | undefined = undefined;
-  protected requestQueue: {
-    resolve: (val: HttpSessionObject<S>) => any;
-    reject: (err: unknown) => any;
-    ref: symbol;
-    onRelease?: (ref: symbol) => any;
-  }[] = [];
+  protected requestQueue: RequestObject<S>[] = [];
   protected loginPromise: Promise<any> | null = null;
   protected logoutPromise: Promise<any> | null = null;
   protected status: HttpSessionStatusData;
@@ -143,12 +138,18 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
       let settled = false;
       const timeoutMsg = `Timed out waiting for session after ${timeout}ms`;
       const cancelTimeout = this.setTimeout(() => onSettle(timeoutMsg), timeout);
+      const requestQueue = this.requestQueue;
+      const next = this.next.bind(this);
       function onSettle(err: unknown, val?: HttpSessionObject<S>) {
         if (settled) return;
         settled = true;
         cancelTimeout();
-        if (err) reject(err);
-        else resolve(val as HttpSessionObject<S>);
+        if (err) {
+          const index = requestQueue.indexOf(requestObject);
+          if (index >= 0) requestQueue.splice(index, 1);
+          reject(err);
+          next();
+        } else resolve(val as HttpSessionObject<S>);
       }
       const requestObject: RequestObject<S> = {
         resolve: (val) => onSettle(null, val),
