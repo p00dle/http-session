@@ -119,14 +119,14 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
     this.changeStatus({ status: 'Logged Out', error, lastError: Date.now() });
   }
 
-  public async requestSession(timeout = 30000): Promise<HttpSessionObject<S>> {
+  public async requestSession(timeout = 30000, onRelease?: () => any): Promise<HttpSessionObject<S>> {
     const inQueue = this.status.inQueue + 1;
     this.changeStatus({ inQueue });
     if (this.allowMultipleRequests) {
       await this.loginWrapper();
       this.loginPromise = null;
       this.changeStatus({ status: 'In Use' });
-      return this.getSessionObject();
+      return this.getSessionObject(onRelease);
     }
     return new Promise<HttpSessionObject<S>>(async (resolve, reject) => {
       let settled = false;
@@ -274,7 +274,7 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
     }
   }
 
-  protected getSessionObject(): HttpSessionObject<S> {
+  protected getSessionObject(onRelease?: () => any): HttpSessionObject<S> {
     const wrap = <A extends any[], R>(
       fnName: string,
       fn: (...args: A) => R,
@@ -284,9 +284,13 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
         if (sessionObject.wasReleased) {
           throw new Error(`calling ${fnName} failed because session has already been released`);
         } else if (this.status.status !== 'In Use') {
+          if (onRelease) onRelease();
           throw new Error(`calling ${fnName} failed because session is in status ${this.status}`);
         }
-        if (releaseAfter) sessionObject.wasReleased = true;
+        if (releaseAfter) {
+          sessionObject.wasReleased = true;
+          if (onRelease) onRelease();
+        }
         return fn(...args);
       };
     };
