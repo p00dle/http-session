@@ -23,13 +23,13 @@ function waitFor(n: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, n));
 }
 
-const testHttpSessionFactory = (): [{ login: any; logout: any; creds: any }, HttpSessionOptions<any>] => {
+const testHttpSessionFactory = (): [{ login: any; logout: any; creds: any }, HttpSessionOptions<any, any>] => {
   const calls = {
     login: null,
     logout: null,
     creds: null,
   };
-  const session: HttpSessionOptions<any> = {
+  const session: HttpSessionOptions<any, any> = {
     async login(session, state) {
       await waitFor(30);
       calls.creds = session.getCredentials();

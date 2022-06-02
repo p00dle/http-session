@@ -5,6 +5,7 @@ import type {
   CredentialsData,
   LoginMethods,
   HttpSessionSerializedData,
+  RequestObject,
 } from './types/http-session';
 
 import type {
@@ -25,6 +26,7 @@ import { parseError } from './lib/parseError';
 import { noOpLogger } from './lib/noOpLogger';
 import { UtilityClass } from './lib/UtilityClass';
 import { merge } from './lib/merge';
+import { Cookie } from './types/cookies';
 
 const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown, void> = {
   name: '',
@@ -45,7 +47,7 @@ const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown, void> = {
     url.protocol === 'https:' ? nodeHttpsRequest(url, options, cb) : nodeHttpRequest(url, options, cb),
 };
 
-export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSessionStatusData> {
+export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
   protected login: ((session: LoginMethods<S, E>, state?: S) => Promise<void>) | null;
   protected logout: ((state: S) => Promise<void>) | null;
   protected _makeHttpRequest: MakeHttpRequest;
@@ -77,7 +79,7 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
 
   constructor(params: Partial<HttpSessionParams<S, E>> = {}) {
     super();
-    const normalizedParams = { ...DEFAULT_SESSION_PARAMS, ...params } as HttpSessionParams<S>;
+    const normalizedParams = { ...DEFAULT_SESSION_PARAMS, ...params } as HttpSessionParams<S, E>;
     this.login = normalizedParams.login;
     this.logout = normalizedParams.logout;
     this._makeHttpRequest = normalizedParams._makeHttpRequest;
@@ -148,21 +150,22 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
         if (err) reject(err);
         else resolve(val as HttpSessionObject<S>);
       }
-      this.requestQueue.push({
+      const requestObject: RequestObject<S> = {
         resolve: (val) => onSettle(null, val),
         reject: onSettle,
         ref,
         onRelease,
-      });
+      };
+      this.requestQueue.push(requestObject);
       this.next();
     });
   }
 
-  protected loginMethods: LoginMethods<S> = {
+  protected loginMethods = {
     getCredentials: () => this.credentials,
     setState: this.setState.bind(this),
     setDefaultHeaders: this.setDefaultHeaders.bind(this),
-    addCookies: (cookies) => this.cookieJar.addCookies(cookies),
+    addCookies: (cookies: Cookie[]) => this.cookieJar.addCookies(cookies),
   };
 
   protected loginWrapper(): Promise<void> {
