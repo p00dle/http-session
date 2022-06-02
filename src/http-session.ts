@@ -26,7 +26,7 @@ import { noOpLogger } from './lib/noOpLogger';
 import { UtilityClass } from './lib/UtilityClass';
 import { merge } from './lib/merge';
 
-const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown> = {
+const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown, void> = {
   name: '',
   state: {} as unknown,
   defaultHeaders: {},
@@ -40,12 +40,13 @@ const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown> = {
   heartbeatIntervalMs: 60_000,
   allowMultipleRequests: false,
   agentOptions: {},
+  enhanceLoginMethods: undefined,
   _makeHttpRequest: (url, options, cb) =>
     url.protocol === 'https:' ? nodeHttpsRequest(url, options, cb) : nodeHttpRequest(url, options, cb),
 };
 
-export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData> {
-  protected login: ((session: LoginMethods<S>, state?: S) => Promise<void>) | null;
+export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSessionStatusData> {
+  protected login: ((session: LoginMethods<S, E>, state?: S) => Promise<void>) | null;
   protected logout: ((state: S) => Promise<void>) | null;
   protected _makeHttpRequest: MakeHttpRequest;
   protected alwaysRenew: boolean;
@@ -53,7 +54,7 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
   protected heartbeatUrl: string | null;
   protected heartbeatIntervalMs: number;
   protected logger: Logger;
-
+  protected enhanceLoginMethods?: () => Promise<E>;
   protected credentials: CredentialsData = { username: null, password: null };
   protected state?: S;
   protected defaultHeaders: HttpHeaders = {};
@@ -69,7 +70,7 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
   protected cookieJar = new CookieJar();
   protected httpAgent: Agent;
 
-  constructor(params: Partial<HttpSessionParams<S>> = {}) {
+  constructor(params: Partial<HttpSessionParams<S, E>> = {}) {
     super();
     const normalizedParams = { ...DEFAULT_SESSION_PARAMS, ...params } as HttpSessionParams<S>;
     this.login = normalizedParams.login;
@@ -84,6 +85,7 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
     this.httpAgent = new Agent(normalizedParams.agentOptions);
     this.setDefaultHeaders(normalizedParams.defaultHeaders);
     this.cookieJar.addCookies(normalizedParams.cookies);
+    this.enhanceLoginMethods = normalizedParams.enhanceLoginMethods as undefined;
     this.status = {
       name: normalizedParams.name,
       status: this.login === null ? 'Ready' : 'Logged Out',
@@ -93,7 +95,6 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
       inQueue: 0,
       isLoggedIn: false,
     } as const;
-    this;
   }
 
   public setState(state: Partial<S>) {
@@ -162,7 +163,16 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
           await this.waitForLockout();
           if (this.login) {
             this.changeStatus({ status: 'Logging In' });
-            await this.login(this.loginMethods, this.state);
+            if (this.enhanceLoginMethods) {
+              const enhancedMethods = await this.enhanceLoginMethods();
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore don't have time to figure out why this is failing
+              await this.login({ ...this.loginMethods, ...enhancedMethods }, this.state);
+            } else {
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore ditto
+              await this.login(this.loginMethods, this.state);
+            }
           }
           this.changeStatus({ status: 'Ready', isLoggedIn: true, error: null, lastError: null });
           this.heartbeat();

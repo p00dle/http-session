@@ -407,6 +407,19 @@ describe('HttpSession', () => {
     expect(inQueueArr).toEqual([0, 1, 2, 1, 0]);
     await testSession.shutdown();
   });
+  it('uses enhanceLoginMethods to add additional props to LoginMethods', async () => {
+    let resultOfEnhancedMethod: any = null;
+    const testSession = new HttpSession({
+      enhanceLoginMethods: async () => ({ getAdditionalNumber: () => 123 }),
+      async login(methods) {
+        resultOfEnhancedMethod = methods.getAdditionalNumber();
+      },
+    });
+    const session = await testSession.requestSession();
+    await session.release();
+    await testSession.shutdown();
+    expect(resultOfEnhancedMethod).toBe(123);
+  });
 });
 
 /*

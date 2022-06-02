@@ -53,17 +53,17 @@ export interface HttpSessionObject<S = any> {
   wasReleased: boolean;
 }
 
-export interface LoginMethods<S = any> {
+export type LoginMethods<S = any, E = void> = {
   getCredentials: () => CredentialsData;
   setState: (state: Partial<S>) => any;
   setDefaultHeaders: (headers: HttpHeaders) => any;
   addCookies: (cookies: Cookie[]) => any;
-}
+} & (E extends void ? unknown : E);
 
-export interface HttpSessionParams<S = any> {
+export interface HttpSessionParams<S = any, E = void> {
   name: string;
   state: S;
-  login: ((session: LoginMethods<S>, state?: S) => any) | null;
+  login: ((session: LoginMethods<S, E>, state?: S) => any) | null;
   logout: ((params: S) => any) | null;
   logger: Logger;
   alwaysRenew: boolean;
@@ -74,6 +74,7 @@ export interface HttpSessionParams<S = any> {
   heartbeatIntervalMs: number;
   allowMultipleRequests: boolean;
   agentOptions: AgentOptions;
+  enhanceLoginMethods?: () => Promise<E>;
   _makeHttpRequest: MakeHttpRequest;
 }
 
