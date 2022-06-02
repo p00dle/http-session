@@ -6,6 +6,7 @@ import type {
   LoginMethods,
   HttpSessionSerializedData,
   RequestObject,
+  RequestSesssionOptions,
 } from './types/http-session';
 
 import type {
@@ -56,7 +57,7 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
   protected heartbeatUrl: string | null;
   protected heartbeatIntervalMs: number;
   protected logger: Logger;
-  protected enhanceLoginMethods?: () => Promise<E>;
+  protected enhanceLoginMethods?: (ref: symbol) => Promise<E>;
   protected credentials: CredentialsData = { username: null, password: null };
   protected state?: S;
   protected defaultHeaders: HttpHeaders = {};
@@ -113,23 +114,34 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
   public async shutdown() {
     this.clearAllTimeouts();
     this.stopHeartbeat();
-    this.requestQueue.forEach(({ reject }) => reject('Session forced to stop'));
+    this.requestQueue.forEach(({ reject, onRelease, ref }) => {
+      reject('Session forced to stop');
+      if (onRelease) onRelease(ref);
+    });
     if (this.status.isLoggedIn) await this.logoutWrapper();
   }
 
   public async invalidateSession(error = 'Session invalidated') {
     if (this.status.isLoggedIn) await this.logoutWrapper();
-    this.requestQueue.forEach(({ reject }) => reject(error));
+    this.requestQueue.forEach(({ reject, onRelease, ref }) => {
+      reject('Session forced to stop');
+      if (onRelease) onRelease(ref);
+    });
     this.requestQueue = [];
     this.changeStatus({ status: 'Logged Out', error, lastError: Date.now(), inQueue: 0 });
   }
 
-  public async requestSession(timeout = 30000, onRelease?: (ref: symbol) => any): Promise<HttpSessionObject<S>> {
-    const ref = Symbol('session-request-ref');
+  public async requestSession(
+    { timeout = 30000, onRelease, beforeRequest, ref = Symbol('request-session') }: RequestSesssionOptions = {
+      timeout: 30000,
+      ref: Symbol('request-session'),
+    }
+  ): Promise<HttpSessionObject<S>> {
     const inQueue = this.status.inQueue + 1;
     this.changeStatus({ inQueue });
     if (this.allowMultipleRequests) {
-      await this.loginWrapper();
+      if (beforeRequest) await beforeRequest(ref);
+      await this.loginWrapper(ref);
       this.loginPromise = null;
       this.changeStatus({ status: 'In Use' });
       return this.getSessionObject(ref, onRelease);
@@ -156,6 +168,7 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
         reject: onSettle,
         ref,
         onRelease,
+        beforeRequest,
       };
       this.requestQueue.push(requestObject);
       this.next();
@@ -169,7 +182,7 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
     addCookies: (cookies: Cookie[]) => this.cookieJar.addCookies(cookies),
   };
 
-  protected loginWrapper(): Promise<void> {
+  protected loginWrapper(ref: symbol): Promise<void> {
     if (this.status.isLoggedIn) return Promise.resolve();
     if (!this.loginPromise) {
       this.loginPromise = new Promise<void>(async (resolve, reject) => {
@@ -178,7 +191,7 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
           if (this.login) {
             this.changeStatus({ status: 'Logging In' });
             if (this.enhanceLoginMethods) {
-              const enhancedMethods = await this.enhanceLoginMethods();
+              const enhancedMethods = await this.enhanceLoginMethods(ref);
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-ignore don't have time to figure out why this is failing
               await this.login({ ...this.loginMethods, ...enhancedMethods }, this.state);
@@ -291,7 +304,8 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
     const request = this.requestQueue.shift();
     if (!request) return;
     try {
-      await this.loginWrapper();
+      if (request.beforeRequest) await request.beforeRequest(request.ref);
+      await this.loginWrapper(request.ref);
       this.loginPromise = null;
       this.changeStatus({ status: 'In Use' });
       request.resolve(this.getSessionObject(request.ref, request.onRelease));

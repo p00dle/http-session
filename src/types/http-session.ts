@@ -84,5 +84,13 @@ export interface RequestObject<S> {
   resolve: (val: HttpSessionObject<S>) => any;
   reject: (err: unknown) => any;
   ref: symbol;
+  beforeRequest?: (ref: symbol) => any;
+  onRelease?: (ref: symbol) => any;
+}
+
+export interface RequestSesssionOptions {
+  timeout?: number;
+  ref?: symbol;
+  beforeRequest?: (ref: symbol) => any;
   onRelease?: (ref: symbol) => any;
 }
