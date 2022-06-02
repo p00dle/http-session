@@ -368,6 +368,42 @@ describe('HttpSession', () => {
     expect(Date.now() - startTime).toBeGreaterThanOrEqual(100);
     await testSession.shutdown();
   });
+  it('correctly increments and decrements inQueue property when allowMultipleRequests is false', async () => {
+    const testSession = new HttpSession({ ...testSessionOptions, allowMultipleRequests: false });
+    const inQueueArr: number[] = [];
+    testSession.onStatus((status) => {
+      if (status.inQueue !== inQueueArr[inQueueArr.length - 1]) inQueueArr.push(status.inQueue);
+    });
+    expect(inQueueArr).toEqual([0]);
+    const session1 = await testSession.requestSession();
+    expect(inQueueArr).toEqual([0, 1]);
+    const session2Promise = testSession.requestSession();
+    expect(inQueueArr).toEqual([0, 1, 2]);
+    await session1.release();
+    expect(inQueueArr).toEqual([0, 1, 2, 1]);
+    const session2 = await session2Promise;
+    await session2.release();
+    expect(inQueueArr).toEqual([0, 1, 2, 1, 0]);
+    await testSession.shutdown();
+  });
+  it('correctly increments and decrements inQueue property when allowMultipleRequests is true', async () => {
+    const testSession = new HttpSession({ ...testSessionOptions, allowMultipleRequests: true });
+    const inQueueArr: number[] = [];
+    testSession.onStatus((status) => {
+      if (status.inQueue !== inQueueArr[inQueueArr.length - 1]) inQueueArr.push(status.inQueue);
+    });
+    expect(inQueueArr).toEqual([0]);
+    const session1 = await testSession.requestSession();
+    expect(inQueueArr).toEqual([0, 1]);
+    const session2Promise = testSession.requestSession();
+    expect(inQueueArr).toEqual([0, 1, 2]);
+    await session1.release();
+    expect(inQueueArr).toEqual([0, 1, 2, 1]);
+    const session2 = await session2Promise;
+    await session2.release();
+    expect(inQueueArr).toEqual([0, 1, 2, 1, 0]);
+    await testSession.shutdown();
+  });
 });
 
 /*

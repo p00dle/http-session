@@ -241,9 +241,10 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
   protected async releaseSession() {
     this.lastUrl = undefined;
     const inQueue = this.status.inQueue - 1;
+    this.changeStatus({ inQueue });
     if (this.allowMultipleRequests) {
       if (this.status.status !== 'Locked Out') {
-        this.changeStatus({ status: inQueue === 0 ? 'Ready' : 'In Use', inQueue });
+        this.changeStatus({ status: inQueue === 0 ? 'Ready' : 'In Use' });
       }
       return;
     }
