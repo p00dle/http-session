@@ -122,7 +122,9 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
 
   public async invalidateSession(error = 'Session invalidated') {
     if (this.status.isLoggedIn) await this.logoutWrapper();
-    this.changeStatus({ status: 'Logged Out', error, lastError: Date.now() });
+    this.requestQueue.forEach(({ reject }) => reject(error));
+    this.requestQueue = [];
+    this.changeStatus({ status: 'Logged Out', error, lastError: Date.now(), inQueue: 0 });
   }
 
   public async requestSession(timeout = 30000, onRelease?: (ref: symbol) => any): Promise<HttpSessionObject<S>> {
