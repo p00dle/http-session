@@ -61,7 +61,12 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
 
   protected allowMultipleRequests: boolean;
   protected lastUrl: URL | undefined = undefined;
-  protected requestQueue: { resolve: (val: HttpSessionObject<S>) => any; reject: (err: unknown) => any }[] = [];
+  protected requestQueue: {
+    resolve: (val: HttpSessionObject<S>) => any;
+    reject: (err: unknown) => any;
+    ref: symbol;
+    onRelease?: (ref: symbol) => any;
+  }[] = [];
   protected loginPromise: Promise<any> | null = null;
   protected logoutPromise: Promise<any> | null = null;
   protected status: HttpSessionStatusData;
@@ -120,14 +125,15 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
     this.changeStatus({ status: 'Logged Out', error, lastError: Date.now() });
   }
 
-  public async requestSession(timeout = 30000, onRelease?: () => any): Promise<HttpSessionObject<S>> {
+  public async requestSession(timeout = 30000, onRelease?: (ref: symbol) => any): Promise<HttpSessionObject<S>> {
+    const ref = Symbol('session-request-ref');
     const inQueue = this.status.inQueue + 1;
     this.changeStatus({ inQueue });
     if (this.allowMultipleRequests) {
       await this.loginWrapper();
       this.loginPromise = null;
       this.changeStatus({ status: 'In Use' });
-      return this.getSessionObject(onRelease);
+      return this.getSessionObject(ref, onRelease);
     }
     return new Promise<HttpSessionObject<S>>(async (resolve, reject) => {
       let settled = false;
@@ -143,6 +149,8 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
       this.requestQueue.push({
         resolve: (val) => onSettle(null, val),
         reject: onSettle,
+        ref,
+        onRelease,
       });
       this.next();
     });
@@ -280,13 +288,13 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
       await this.loginWrapper();
       this.loginPromise = null;
       this.changeStatus({ status: 'In Use' });
-      request.resolve(this.getSessionObject());
+      request.resolve(this.getSessionObject(request.ref, request.onRelease));
     } catch (err) {
       request.reject(err);
     }
   }
 
-  protected getSessionObject(onRelease?: () => any): HttpSessionObject<S> {
+  protected getSessionObject(ref: symbol, onRelease?: (ref: symbol) => any): HttpSessionObject<S> {
     const wrap = <A extends any[], R>(
       fnName: string,
       fn: (...args: A) => R,
@@ -296,12 +304,12 @@ export class HttpSession<S = unknown, E = void> extends UtilityClass<HttpSession
         if (sessionObject.wasReleased) {
           throw new Error(`calling ${fnName} failed because session has already been released`);
         } else if (this.status.status !== 'In Use') {
-          if (onRelease) onRelease();
+          if (onRelease) onRelease(ref);
           throw new Error(`calling ${fnName} failed because session is in status ${this.status}`);
         }
         if (releaseAfter) {
           sessionObject.wasReleased = true;
-          if (onRelease) onRelease();
+          if (onRelease) onRelease(ref);
         }
         return fn(...args);
       };

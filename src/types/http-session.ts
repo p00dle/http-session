@@ -74,7 +74,7 @@ export interface HttpSessionParams<S = any, E = void> {
   heartbeatIntervalMs: number;
   allowMultipleRequests: boolean;
   agentOptions: AgentOptions;
-  enhanceLoginMethods?: () => Promise<E>;
+  enhanceLoginMethods?: (ref: symbol) => Promise<E>;
   _makeHttpRequest: MakeHttpRequest;
 }
 
