@@ -78,4 +78,4 @@ export interface HttpSessionParams<S = any, E = void> {
   _makeHttpRequest: MakeHttpRequest;
 }
 
-export type HttpSessionOptions<S = unknown> = Partial<HttpSessionParams<S>>;
+export type HttpSessionOptions<S = unknown, E = void> = Partial<HttpSessionParams<S, E>>;
