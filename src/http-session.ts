@@ -45,7 +45,7 @@ const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown> = {
 };
 
 export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData> {
-  protected login: ((params: S & CredentialsData, methods: LoginMethods<S>) => Promise<void>) | null;
+  protected login: ((session: LoginMethods<S>, state?: S) => Promise<void>) | null;
   protected logout: ((state: S) => Promise<void>) | null;
   protected _makeHttpRequest: MakeHttpRequest;
   protected alwaysRenew: boolean;
@@ -148,6 +148,7 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
   }
 
   protected loginMethods: LoginMethods<S> = {
+    getCredentials: () => this.credentials,
     setState: this.setState.bind(this),
     setDefaultHeaders: this.setDefaultHeaders.bind(this),
     addCookies: (cookies) => this.cookieJar.addCookies(cookies),
@@ -161,7 +162,7 @@ export class HttpSession<S = unknown> extends UtilityClass<HttpSessionStatusData
           await this.waitForLockout();
           if (this.login) {
             this.changeStatus({ status: 'Logging In' });
-            await this.login({ ...this.state, ...this.credentials } as S & CredentialsData, this.loginMethods);
+            await this.login(this.loginMethods, this.state);
           }
           this.changeStatus({ status: 'Ready', isLoggedIn: true, error: null, lastError: null });
           this.heartbeat();

@@ -54,6 +54,7 @@ export interface HttpSessionObject<S = any> {
 }
 
 export interface LoginMethods<S = any> {
+  getCredentials: () => CredentialsData;
   setState: (state: Partial<S>) => any;
   setDefaultHeaders: (headers: HttpHeaders) => any;
   addCookies: (cookies: Cookie[]) => any;
@@ -62,7 +63,7 @@ export interface LoginMethods<S = any> {
 export interface HttpSessionParams<S = any> {
   name: string;
   state: S;
-  login: ((params: S & CredentialsData, methods: LoginMethods<S>) => any) | null;
+  login: ((session: LoginMethods<S>, state?: S) => any) | null;
   logout: ((params: S) => any) | null;
   logger: Logger;
   alwaysRenew: boolean;

@@ -23,15 +23,17 @@ function waitFor(n: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, n));
 }
 
-const testHttpSessionFactory = () => {
+const testHttpSessionFactory = (): [{ login: any; logout: any; creds: any }, HttpSessionOptions<any>] => {
   const calls = {
     login: null,
     logout: null,
+    creds: null,
   };
   const session: HttpSessionOptions<any> = {
-    async login(params) {
+    async login(session, state) {
       await waitFor(30);
-      calls.login = params;
+      calls.creds = session.getCredentials();
+      calls.login = state;
     },
     async logout(params) {
       await waitFor(30);
@@ -88,7 +90,8 @@ describe('HttpSession', () => {
     expect(sessionData).toEqual({ state: { str: 'abc', num: 123 }, defaultHeaders: {}, cookies: [] });
     expect(sessionParams).toEqual({ str: 'abc', num: 123 });
     expect(statuses).toEqual(['Logged Out', 'Logging In', 'Ready', 'In Use', 'Ready']);
-    expect(calls.login).toEqual({ ...suppliedParams, ...suppliedCreds });
+    expect(calls.login).toEqual(suppliedParams);
+    expect(calls.creds).toEqual(suppliedCreds);
     await testSession.shutdown();
     expect(calls.logout).toEqual(suppliedParams);
     expect(statuses).toEqual(['Logged Out', 'Logging In', 'Ready', 'In Use', 'Ready', 'Logging Out', 'Logged Out']);
