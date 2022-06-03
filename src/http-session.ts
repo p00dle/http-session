@@ -7,6 +7,7 @@ import type {
   HttpSessionSerializedData,
   RequestObject,
   RequestSesssionOptions,
+  HttpSessionRequest,
 } from './types/http-session';
 
 import type {
@@ -50,7 +51,7 @@ const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown, void> = {
 
 export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
   protected login: ((session: LoginMethods<S, E>, state?: S) => Promise<void>) | null;
-  protected logout: ((state: S) => Promise<void>) | null;
+  protected logout: ((session: { request: HttpSessionRequest }, state: S) => Promise<void>) | null;
   protected _makeHttpRequest: MakeHttpRequest;
   protected alwaysRenew: boolean;
   protected lockoutTimeMs: number;
@@ -178,6 +179,10 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
   protected loginMethods = {
     getCredentials: () => this.credentials,
     setState: this.setState.bind(this),
+    setHeartbeatUrl: (url: string | null) => {
+      this.heartbeatUrl = url;
+    },
+    request: this.request.bind(this),
     setDefaultHeaders: this.setDefaultHeaders.bind(this),
     addCookies: (cookies: Cookie[]) => this.cookieJar.addCookies(cookies),
   };
@@ -228,7 +233,7 @@ export class HttpSession<S, E> extends UtilityClass<HttpSessionStatusData> {
         }
         try {
           this.changeStatus({ status: 'Logging Out' });
-          await this.logout(this.state as S);
+          await this.logout({ request: this.request.bind(this) }, this.state as S);
           this.stopHeartbeat();
           this.changeStatus({ status: 'Logged Out', uptimeSince: null, isLoggedIn: false });
         } catch (err) {

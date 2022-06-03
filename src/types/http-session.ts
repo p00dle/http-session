@@ -53,9 +53,15 @@ export interface HttpSessionObject<S> {
   wasReleased: boolean;
 }
 
+export type HttpSessionRequest = <T extends HttpRequestDataType, R extends HttpResponseType>(
+  options: HttpRequestOptions<T, R>
+) => Promise<HttpRequestResponse<R>>;
+
 export type LoginMethods<S, E> = {
+  request: HttpSessionRequest;
   getCredentials: () => CredentialsData;
   setState: (state: Partial<S>) => any;
+  setHeartbeatUrl: (url: string | null) => any;
   setDefaultHeaders: (headers: HttpHeaders) => any;
   addCookies: (cookies: Cookie[]) => any;
 } & (E extends void ? unknown : E);
@@ -64,7 +70,7 @@ export interface HttpSessionParams<S, E> {
   name: string;
   state: S;
   login: ((session: LoginMethods<S, E>, state?: S) => any) | null;
-  logout: ((params: S) => any) | null;
+  logout: ((session: { request: HttpSessionRequest }, state: S) => any) | null;
   logger: Logger;
   alwaysRenew: boolean;
   lockoutTimeMs: number;
