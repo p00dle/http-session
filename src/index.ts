@@ -9,6 +9,7 @@ export type {
   HttpResponseType,
 } from './types/http-request';
 export type {
+  HttpSessionRequest,
   HttpSessionObject,
   HttpSessionStatusData,
   HttpSessionOptions,
