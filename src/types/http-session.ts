@@ -64,13 +64,14 @@ export type LoginMethods<S, E> = {
   setHeartbeatUrl: (url: string | null) => any;
   setDefaultHeaders: (headers: HttpHeaders) => any;
   addCookies: (cookies: Cookie[]) => any;
+  removeCookies: (cookies: { key?: string; domain?: string; path?: string }[]) => any;
 } & (E extends void ? unknown : E);
 
-export interface HttpSessionParams<S, E> {
+export interface HttpSessionParams<S, E, E2> {
   name: string;
   state: S;
   login: ((session: LoginMethods<S, E>, state?: S) => any) | null;
-  logout: ((session: { request: HttpSessionRequest }, state: S) => any) | null;
+  logout: ((session: LoginMethods<S, E2>, state: S) => any) | null;
   logger: Logger;
   alwaysRenew: boolean;
   lockoutTimeMs: number;
@@ -81,10 +82,11 @@ export interface HttpSessionParams<S, E> {
   allowMultipleRequests: boolean;
   agentOptions: AgentOptions;
   enhanceLoginMethods?: (ref: symbol) => Promise<E>;
+  enhanceLogoutMethods?: () => Promise<E2>;
   _makeHttpRequest: MakeHttpRequest;
 }
 
-export type HttpSessionOptions<S, E> = Partial<HttpSessionParams<S, E>>;
+export type HttpSessionOptions<S, E, E2> = Partial<HttpSessionParams<S, E, E2>>;
 
 export interface RequestObject<S> {
   resolve: (val: HttpSessionObject<S>) => any;
