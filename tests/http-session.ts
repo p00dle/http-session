@@ -330,6 +330,10 @@ describe('HttpSession', () => {
     testSession.onStatus(({ status, error }) => {
       if (status === 'Error') listenerErrors.push(error);
     });
+    const inQueueCount: number[] = [];
+    testSession.onStatus(({ inQueue }) => {
+      if (inQueue !== inQueueCount[inQueueCount.length - 1]) inQueueCount.push(inQueue);
+    });
     const session = await testSession.requestSession();
     await session.release();
     const session2 = await testSession.requestSession();
@@ -337,6 +341,7 @@ describe('HttpSession', () => {
     await testSession.shutdown();
     expect(listenerErrors[0]).toMatch('logout_error');
     expect(listenerErrors[1]).toMatch('logout_error');
+    expect(inQueueCount).toEqual([0, 1, 0, 1, 0]);
   });
   it('queues up session requests', async () => {
     const testSession = new HttpSession();
