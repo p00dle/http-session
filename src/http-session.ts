@@ -335,7 +335,7 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
           throw new Error(`calling ${fnName} failed because session has already been released`);
         } else if (this.status.status !== 'In Use') {
           if (onRelease) onRelease(ref);
-          throw new Error(`calling ${fnName} failed because session is in status ${this.status}`);
+          throw new Error(`calling ${fnName} failed because session is in status ${this.status.status}`);
         }
         if (releaseAfter) {
           sessionObject.wasReleased = true;
