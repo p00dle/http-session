@@ -84,6 +84,7 @@ export interface HttpSessionParams<S, E, E2> {
   enhanceLoginMethods?: (ref: symbol) => Promise<E>;
   enhanceLogoutMethods?: () => Promise<E2>;
   _makeHttpRequest: MakeHttpRequest;
+  _makeHttpsRequest: MakeHttpRequest;
 }
 
 export type HttpSessionOptions<S, E, E2> = Partial<HttpSessionParams<S, E, E2>>;

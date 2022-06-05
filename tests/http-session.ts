@@ -42,6 +42,7 @@ const testHttpSessionFactory = (): [{ login: any; logout: any; creds: any }, Htt
     allowMultipleRequests: true,
     lockoutTimeMs: 100,
     _makeHttpRequest: mockHttpRequest,
+    _makeHttpsRequest: mockHttpRequest,
   };
   return [calls, session];
 };
@@ -157,7 +158,7 @@ describe('HttpSession', () => {
     const heartbeatSession = new HttpSession({
       heartbeatUrl: 'https://heartbeat.url',
       heartbeatIntervalMs: 20,
-      _makeHttpRequest: urlHttpRequestFactory(urls),
+      _makeHttpsRequest: urlHttpRequestFactory(urls),
     });
     expect(urls).toHaveLength(0);
     const session = await heartbeatSession.requestSession();
@@ -493,8 +494,66 @@ describe('HttpSession', () => {
     expect(onReleaseRef).toBe(originalRef);
     expect(orderOfCalls).toEqual(['before-request', 'enhance', 'release']);
   });
+  it('handles errors in request', async () => {
+    const testSession = new HttpSession();
+    const session = await testSession.requestSession();
+    try {
+      await session.request({ url: 'https://example.thisisnotavalidtopdomain' });
+    } catch {}
+    try {
+      await session.request({ url: 'http://example.thisisnotavalidtopdomain' });
+    } catch {}
+    expect(true).toBe(true);
+  });
+  it('shutting down will reject all requests currently in queue', async () => {
+    const testSession = new HttpSession({
+      async login() {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      },
+    });
+    const promise1 = testSession.requestSession();
+    const promise2 = testSession.requestSession();
+    await testSession.shutdown();
+    try {
+      await Promise.all([promise1, promise2]);
+    } catch (err) {
+      expect(err).toMatch(/Timed out waiting for session/);
+    }
+  });
+  it('invalidating session will make current request fail and force next one to login again', async () => {
+    let loginCount = 0;
+    const testSession = new HttpSession({
+      async login() {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        loginCount++;
+      },
+    });
+    const session = await testSession.requestSession();
+    const promise1 = testSession.requestSession();
+    await testSession.invalidateSession();
+    try {
+      session.request({ url: new URL('https://example.com') });
+    } catch (err) {
+      expect(err).toBeTruthy();
+    }
+    await promise1;
+    await testSession.shutdown();
+    expect(loginCount).toBe(2);
+  });
 });
 
 /*
-
+TODO: 
+ - beforeRequest
+ - setHeartbeatUrl
+ - addCookies
+ - removeCookies
+ - call logoutWrapper when isLoggedIn is false
+ - enhanceLogoutMethods
+ - call next() when queue is empty
+ - onRelase
+ - setState
+ - waitForLockout - finished waiting
+ - shutdown while waiting for lockout
+ 
 */

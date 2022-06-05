@@ -435,4 +435,20 @@ describe('httpRequest', () => {
     }
     expect(assertions.every((id) => id)).toBe(true);
   });
+  it('handles error thrown by underlying request', async () => {
+    try {
+      await httpRequest({ url: 'http://example.thisisnotavalidtopdomain' });
+    } catch {}
+    try {
+      await httpRequest({ url: 'https://example.thisisnotavalidtopdomain' });
+    } catch {}
+    expect(true).toBe(true);
+  });
 });
+
+/*
+TODO:
+ - Content-Encoding: gzip, br, deflate
+ - hidePassword
+ - invalid JSON response
+*/

@@ -111,8 +111,11 @@ function makeRequestParams<T extends HttpRequestDataType>(
     maxRedirects: options.maxRedirects || 5,
     formattedData: formatData(options.dataType || 'raw', options.data),
     logger: options.logger || noOpLogger,
-    makeHttpRequest: options._request || nodeHttpRequest,
-    makeHttpsRequest: options._request || nodeHttpsRequest,
+    makeRequest:
+      options._request ||
+      ((url, options, cb) => {
+        return url.protocol === 'https:' ? nodeHttpsRequest(url, options, cb) : nodeHttpRequest(url, options, cb);
+      }),
     host: options.host || options.previousUrl ? makeURL(options.previousUrl).host : url.host,
     origin: options.previousUrl ? makeURL(options.previousUrl).origin : url.origin,
   };
@@ -376,14 +379,12 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
 ): Promise<HttpRequestResponse<R>> {
   if (typeof options !== 'object') throw new TypeError('options must be an object with at least url property defined');
   const [requestParams, cookieJar, url, nodeRequestParams, hidePassword] = makeOptions(options);
-  const { dataType, formattedData, maxRedirects, responseType, logger, makeHttpRequest, makeHttpsRequest } =
-    requestParams;
+  const { dataType, formattedData, maxRedirects, responseType, logger, makeRequest } = requestParams;
   const responseData = makeResponseData(options);
   responseData.request = makeRequestData(requestParams, url, nodeRequestParams, options.data);
   if (url === invalidUrl) {
     throw makeHttpRequestError(new Error('Invalid Url'), responseData);
   }
-  const makeRequest = url.protocol === 'https:' ? makeHttpsRequest : makeHttpRequest;
   try {
     let redirectUrl = url;
     let response: ResponseStream;
@@ -402,14 +403,14 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
         );
       }
       const request = makeRequest(redirectUrl, nodeRequestParams, responseCallback);
-      if (keepMethodAndData) {
-        if (dataType === 'stream') {
-          await asyncPipeline(formattedData as Readable, request);
-        } else {
-          request.end(formattedData);
-        }
+      if (keepMethodAndData && dataType === 'stream') {
+        await asyncPipeline(formattedData as Readable, request);
       } else {
-        request.end();
+        await new Promise((resolve, reject) => {
+          request.on('close', resolve);
+          request.on('error', reject);
+          request.end(keepMethodAndData ? formattedData : undefined);
+        });
       }
       response = await responsePromise;
       cookieJar.collectCookiesFromResponse(redirectUrl, response.headers);

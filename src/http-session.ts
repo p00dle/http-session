@@ -21,7 +21,8 @@ import type { Logger } from './types/logger';
 import { request as nodeHttpsRequest } from 'node:https';
 import { request as nodeHttpRequest } from 'node:http';
 import { httpRequest } from './http-request';
-import { Agent } from 'https';
+import { Agent as HttpAgent } from 'http';
+import { Agent as HttpsAgent } from 'https';
 import { CookieJar } from './cookies/jar';
 import { parseError } from './lib/parseError';
 import { noOpLogger } from './lib/noOpLogger';
@@ -45,14 +46,15 @@ const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown, void, void> = {
   agentOptions: {},
   enhanceLoginMethods: undefined,
   enhanceLogoutMethods: undefined,
-  _makeHttpRequest: (url, options, cb) =>
-    url.protocol === 'https:' ? nodeHttpsRequest(url, options, cb) : nodeHttpRequest(url, options, cb),
+  _makeHttpRequest: nodeHttpRequest,
+  _makeHttpsRequest: nodeHttpsRequest,
 };
 
 export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
   protected login: ((session: LoginMethods<S, E>, state?: S) => Promise<void>) | null;
   protected logout: ((session: LoginMethods<S, E2>, state: S) => Promise<void>) | null;
   protected _makeHttpRequest: MakeHttpRequest;
+  protected _makeHttpsRequest: MakeHttpRequest;
   protected alwaysRenew: boolean;
   protected lockoutTimeMs: number;
   protected heartbeatUrl: string | null;
@@ -73,7 +75,8 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
   protected heartbeatTimeout: NodeJS.Timeout | null = null;
 
   protected cookieJar = new CookieJar();
-  protected httpAgent: Agent;
+  protected httpAgent: HttpAgent;
+  protected httpsAgent: HttpsAgent;
 
   constructor(params: Partial<HttpSessionParams<S, E, E2>> = {}) {
     super();
@@ -81,13 +84,15 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
     this.login = normalizedParams.login;
     this.logout = normalizedParams.logout;
     this._makeHttpRequest = normalizedParams._makeHttpRequest;
+    this._makeHttpsRequest = normalizedParams._makeHttpsRequest;
     this.alwaysRenew = normalizedParams.alwaysRenew;
     this.lockoutTimeMs = normalizedParams.lockoutTimeMs;
     this.heartbeatUrl = normalizedParams.heartbeatUrl;
     this.heartbeatIntervalMs = normalizedParams.heartbeatIntervalMs;
     this.allowMultipleRequests = normalizedParams.allowMultipleRequests;
     this.logger = normalizedParams.logger;
-    this.httpAgent = new Agent(normalizedParams.agentOptions);
+    this.httpAgent = new HttpAgent(normalizedParams.agentOptions);
+    this.httpsAgent = new HttpsAgent(normalizedParams.agentOptions);
     this.setDefaultHeaders(normalizedParams.defaultHeaders);
     this.cookieJar.addCookies(normalizedParams.cookies);
     this.enhanceLoginMethods = normalizedParams.enhanceLoginMethods;
@@ -117,21 +122,13 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
   public async shutdown() {
     this.clearAllTimeouts();
     this.stopHeartbeat();
-    this.requestQueue.forEach(({ reject, onRelease, ref }) => {
-      reject('Session forced to stop');
-      if (onRelease) onRelease(ref);
-    });
     if (this.status.isLoggedIn) await this.logoutWrapper();
   }
 
   public async invalidateSession(error = 'Session invalidated') {
     if (this.status.isLoggedIn) await this.logoutWrapper();
-    this.requestQueue.forEach(({ reject, onRelease, ref }) => {
-      reject('Session forced to stop');
-      if (onRelease) onRelease(ref);
-    });
-    this.requestQueue = [];
     this.changeStatus({ status: 'Logged Out', error, lastError: Date.now(), inQueue: 0 });
+    this.next();
   }
 
   public async requestSession(
@@ -274,15 +271,18 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
   protected async request<T extends HttpRequestDataType, R extends HttpResponseType>(
     options: HttpRequestOptions<T, R>
   ): Promise<HttpRequestResponse<R>> {
-    const { agent, cookieJar, headers, logger, previousUrl, ...otherOptions } = options;
+    const { agent, cookieJar, headers, logger, previousUrl, url: originalUrl, ...otherOptions } = options;
+    const url = typeof originalUrl === 'string' ? new URL(originalUrl) : originalUrl;
+    const isHttps = url.protocol === 'https:';
     this.stopHeartbeat();
     const response = await httpRequest({
-      agent: agent || this.httpAgent,
+      url,
+      agent: agent || (isHttps ? this.httpsAgent : this.httpAgent),
       cookieJar: cookieJar || this.cookieJar,
       headers: headers ? { ...this.defaultHeaders, ...headers } : this.defaultHeaders,
       logger: logger || this.logger,
       previousUrl: previousUrl || this.lastUrl,
-      _request: this._makeHttpRequest,
+      _request: isHttps ? this._makeHttpsRequest : this._makeHttpRequest,
       ...otherOptions,
     });
     this.heartbeat();
