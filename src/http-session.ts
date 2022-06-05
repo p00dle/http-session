@@ -154,12 +154,16 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
       const timeoutMsg = `Timed out waiting for session after ${timeout}ms`;
       const cancelTimeout = this.setTimeout(() => onSettle(timeoutMsg), timeout);
       const requestQueue = this.requestQueue;
+      const decrementQueue = () => {
+        this.changeStatus({ inQueue: this.status.inQueue - 1 });
+      };
       const next = this.next.bind(this);
       function onSettle(err: unknown, val?: HttpSessionObject<S>) {
         if (settled) return;
         settled = true;
         cancelTimeout();
         if (err) {
+          decrementQueue();
           const index = requestQueue.indexOf(requestObject);
           if (index >= 0) requestQueue.splice(index, 1);
           reject(err);
