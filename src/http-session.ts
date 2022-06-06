@@ -74,7 +74,7 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
   protected status: HttpSessionStatusData;
   protected heartbeatTimeout: NodeJS.Timeout | null = null;
 
-  protected cookieJar = new CookieJar();
+  protected cookieJar: CookieJar;
   protected httpAgent: HttpAgent;
   protected httpsAgent: HttpsAgent;
 
@@ -94,9 +94,11 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
     this.httpAgent = new HttpAgent(normalizedParams.agentOptions);
     this.httpsAgent = new HttpsAgent(normalizedParams.agentOptions);
     this.setDefaultHeaders(normalizedParams.defaultHeaders);
+    this.cookieJar = new CookieJar();
     this.cookieJar.addCookies(normalizedParams.cookies);
     this.enhanceLoginMethods = normalizedParams.enhanceLoginMethods;
     this.enhanceLogoutMethods = normalizedParams.enhanceLogoutMethods;
+
     this.status = {
       name: normalizedParams.name,
       status: this.login === null ? 'Ready' : 'Logged Out',
@@ -277,7 +279,7 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
     this.stopHeartbeat();
     const response = await httpRequest({
       url,
-      agent: agent || (isHttps ? this.httpsAgent : this.httpAgent),
+      agent: agent || (isHttps ? this.httpsAgent : (this.httpAgent as HttpsAgent)),
       cookieJar: cookieJar || this.cookieJar,
       headers: headers ? { ...this.defaultHeaders, ...headers } : this.defaultHeaders,
       logger: logger || this.logger,

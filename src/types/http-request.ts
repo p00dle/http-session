@@ -1,6 +1,5 @@
 import type { Readable, Writable } from 'node:stream';
-import type { Agent as HttpAgent } from 'node:http';
-import type { Agent as HttpsAgent, RequestOptions } from 'node:https';
+import type { Agent, RequestOptions } from 'node:https';
 import type { CookieJar } from '../cookies/jar';
 import type { Logger } from './logger';
 import type { Cookie } from './cookies';
@@ -36,7 +35,7 @@ export interface HttpRequestOptions<T extends HttpRequestDataType, R extends Htt
   previousUrl?: URL | string;
   method?: HttpMethod;
   responseType?: R;
-  agent?: HttpsAgent | HttpAgent | false;
+  agent?: Agent | false;
   headers?: HttpHeaders;
   abortSignal?: AbortSignal;
   hidePassword?: string;

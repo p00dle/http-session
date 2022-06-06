@@ -1,4 +1,5 @@
-import type { AgentOptions } from 'node:http';
+import type { AgentOptions as HttpAgentOptions } from 'node:http';
+import type { AgentOptions as HttpsAgentOptions } from 'node:https';
 import type { Cookie } from './cookies';
 import type {
   HttpRequestDataType,
@@ -80,7 +81,7 @@ export interface HttpSessionParams<S, E, E2> {
   heartbeatUrl: string | null;
   heartbeatIntervalMs: number;
   allowMultipleRequests: boolean;
-  agentOptions: AgentOptions;
+  agentOptions: HttpAgentOptions & HttpsAgentOptions;
   enhanceLoginMethods?: (ref: symbol) => Promise<E>;
   enhanceLogoutMethods?: () => Promise<E2>;
   _makeHttpRequest: MakeHttpRequest;

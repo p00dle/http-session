@@ -11,7 +11,10 @@ function stringifyCookie(cookie: Cookie): string {
 }
 
 export class CookieJar {
-  constructor(private cookies: Cookie[] = []) {}
+  protected cookies: Cookie[];
+  constructor(cookies?: Cookie[]) {
+    this.cookies = Array.isArray(cookies) ? cookies : [];
+  }
 
   public collectCookiesFromResponse(url: URL, responseHeaders?: HttpHeaders) {
     const cookies = getCookieHeaders(responseHeaders)
@@ -20,7 +23,7 @@ export class CookieJar {
     this.addCookies(cookies);
   }
 
-  private expireCookies() {
+  protected expireCookies() {
     let i = this.cookies.length;
     const now = Date.now();
     while (i--) {
