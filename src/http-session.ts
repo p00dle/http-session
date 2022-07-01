@@ -63,7 +63,7 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
   protected enhanceLoginMethods?: (ref: symbol) => Promise<E>;
   protected enhanceLogoutMethods?: () => Promise<E2>;
   protected credentials: CredentialsData = { username: null, password: null };
-  protected state?: S;
+  protected state: S;
   protected defaultHeaders: HttpHeaders = {};
 
   protected allowMultipleRequests: boolean;
@@ -98,7 +98,7 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
     this.cookieJar.addCookies(normalizedParams.cookies);
     this.enhanceLoginMethods = normalizedParams.enhanceLoginMethods;
     this.enhanceLogoutMethods = normalizedParams.enhanceLogoutMethods;
-
+    this.state = normalizedParams.state;
     this.status = {
       name: normalizedParams.name,
       status: this.login === null ? 'Ready' : 'Logged Out',
