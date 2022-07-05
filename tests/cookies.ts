@@ -198,7 +198,7 @@ describe('cookies', () => {
 
   describe('CookieJar', () => {
     it('addCookie overwrites with same key, domain, and path else adds', () => {
-      const jar = new CookieJar();
+      const jar = new CookieJar([]);
       jar.addCookie(makeCookie({ key: 'a', value: 'b', domain: 'abc.com' }));
       expect(jar.toJSON()).toHaveLength(1);
       jar.addCookie(makeCookie({ key: 'a', value: 'c', domain: 'abc.com' }));
@@ -231,9 +231,9 @@ describe('cookies', () => {
       jar.addCookie(makeCookie({ key: 'a', value: 'e', domain: 'abc.com', path: '/foo' }));
       jar.addCookie(makeCookie({ key: 'a', value: 'g', domain: 'bob.com', path: '/foo' }));
       jar.addCookie(makeCookie({ key: 'a', value: 'h', domain: 'bob.com' }));
-      expect(jar.getCookie('a').value).toBe('b');
-      expect(jar.getCookie('a', undefined, '/foo').value).toBe('e');
-      expect(jar.getCookie('a', 'bob.com', '/foo').value).toBe('g');
+      expect((jar.getCookie('a') || { value: '' }).value).toBe('b');
+      expect((jar.getCookie('a', undefined, '/foo') || { value: '' }).value).toBe('e');
+      expect((jar.getCookie('a', 'bob.com', '/foo') || { value: '' }).value).toBe('g');
       expect(jar.getCookie('b')).toBe(null);
     });
     it('cookies are removed when they are past their expiry time when getRequestCookies is called', () => {
