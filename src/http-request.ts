@@ -419,9 +419,23 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       if (keepMethodAndData && dataType === 'stream') {
         await asyncPipeline(formattedData as Readable, request);
       } else {
-        await new Promise((resolve, reject) => {
-          request.on('close', resolve);
-          request.on('error', reject);
+        await new Promise<void>((resolve, reject) => {
+          let settled = false;
+          function onResolve() {
+            if (!settled) {
+              settled = true;
+              resolve();
+            }
+          }
+          function onReject(err: any) {
+            if (!settled) {
+              settled = true;
+              reject(err);
+            }
+          }
+          request.on('close', onResolve);
+          request.on('finish', onResolve);
+          request.on('error', onReject);
           request.end(keepMethodAndData ? formattedData : undefined);
         });
       }
