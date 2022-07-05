@@ -1,5 +1,3 @@
-import type { AgentOptions as HttpAgentOptions } from 'node:http';
-import type { AgentOptions as HttpsAgentOptions } from 'node:https';
 import type { Cookie } from './cookies';
 import type {
   HttpRequestDataType,

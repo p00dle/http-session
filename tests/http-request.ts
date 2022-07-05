@@ -4,7 +4,7 @@ import type { Cookie } from '../src/types/cookies';
 
 import { isHttpRequestError } from '../src/http-request';
 import { httpRequest } from '../src';
-import { Readable, Writable } from 'node:stream';
+import { Writable } from 'node:stream';
 import { CookieJar, makeCookie } from '../src/cookies';
 import { callbackPromise } from '../src/lib/callbackPromise';
 import { collectStreamToString } from '../src/lib/collectStreamToString';
@@ -437,7 +437,7 @@ describe('httpRequest', () => {
     let err1: any = null;
     let err2: any = null;
     let err3: any = null;
-    function log(message: string, details: string = '') {
+    function log(message: string, details = '') {
       logs.push({ message, details });
     }
     const logger = { debug: log, warn: log, info: log, error: log };
