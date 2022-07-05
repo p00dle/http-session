@@ -490,7 +490,6 @@ describe('httpRequest', () => {
     expect(logs[1].details).not.toMatch('hunter2');
     expect(logs[1].details).not.toMatch(secretApiKey);
 
-    console.log(err3);
     expect(err3.request.data).not.toMatch('hunter2');
     expect(err3.request.data).not.toMatch(secretApiKey);
     expect(err3.request.formattedData).not.toMatch('hunter2');
