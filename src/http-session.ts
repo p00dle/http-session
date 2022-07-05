@@ -43,7 +43,9 @@ const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown, void, void> = {
   heartbeatUrl: null,
   heartbeatIntervalMs: 60_000,
   allowMultipleRequests: false,
-  agentOptions: {},
+  keepConnectionAlive: true,
+  maxSocketsPerHost: 5,
+  connectionLifespanMs: 30_000,
   enhanceLoginMethods: undefined,
   enhanceLogoutMethods: undefined,
   _makeHttpRequest: nodeHttpRequest,
@@ -91,8 +93,13 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
     this.heartbeatIntervalMs = normalizedParams.heartbeatIntervalMs;
     this.allowMultipleRequests = normalizedParams.allowMultipleRequests;
     this.logger = normalizedParams.logger;
-    this.httpAgent = new HttpAgent(normalizedParams.agentOptions);
-    this.httpsAgent = new HttpsAgent(normalizedParams.agentOptions);
+    const agentOptions = {
+      keepAlive: normalizedParams.keepConnectionAlive,
+      maxSockets: normalizedParams.maxSocketsPerHost,
+      keepAliveMsecs: normalizedParams.connectionLifespanMs,
+    };
+    this.httpAgent = new HttpAgent(agentOptions);
+    this.httpsAgent = new HttpsAgent(agentOptions);
     this.setDefaultHeaders(normalizedParams.defaultHeaders);
     this.cookieJar = new CookieJar();
     this.cookieJar.addCookies(normalizedParams.cookies);
@@ -124,6 +131,8 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
   public async shutdown() {
     this.clearAllTimeouts();
     this.stopHeartbeat();
+    this.httpAgent.destroy();
+    this.httpsAgent.destroy();
     if (this.status.isLoggedIn) await this.logoutWrapper();
   }
 
