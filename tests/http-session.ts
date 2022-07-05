@@ -222,7 +222,7 @@ describe('HttpSession', () => {
         }
       },
     });
-    const listenerErrors: string[] = [];
+    const listenerErrors: (string | null)[] = [];
     const inQueueCount: number[] = [];
     testSession.onStatus(({ status, error, inQueue }) => {
       if (status === 'Error') listenerErrors.push(error);
@@ -327,7 +327,7 @@ describe('HttpSession', () => {
       },
       alwaysRenew: true,
     });
-    const listenerErrors: string[] = [];
+    const listenerErrors: (string | null)[] = [];
     testSession.onStatus(({ status, error }) => {
       if (status === 'Error') listenerErrors.push(error);
     });
@@ -467,6 +467,7 @@ describe('HttpSession', () => {
     let enhanceRef: any;
     let onReleaseRef: any;
     const testSession = new HttpSession({
+      allowMultipleRequests: true,
       enhanceLoginMethods: async (ref) => {
         enhanceRef = ref;
         orderOfCalls.push('enhance');
