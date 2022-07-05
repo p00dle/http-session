@@ -184,7 +184,7 @@ function makeHeaders(
 
 function makeOptions<T extends HttpRequestDataType>(
   options: HttpRequestOptions<T, any>
-): [HttpRequestParams, CookieJar, URL, { headers: HttpHeaders; method: HttpMethod } & RequestOptions, string] {
+): [HttpRequestParams, CookieJar, URL, { headers: HttpHeaders; method: HttpMethod } & RequestOptions, string[]] {
   const url = makeURL(options.url);
   const previousUrl = options.previousUrl ? makeURL(options.previousUrl) : undefined;
   const requestParams = makeRequestParams(options, url);
@@ -209,7 +209,7 @@ function makeOptions<T extends HttpRequestDataType>(
       signal: options.abortSignal,
       timeout: options.timeout,
     },
-    options.hidePassword || '',
+    options.hideSecrets || [],
   ];
 }
 
@@ -346,7 +346,11 @@ function formatResponse(response: Omit<HttpRequestResponse<any>, 'request'>) {
   };
 }
 
-function formatRequest(request: HttpRequestResponse<any>['request'], hidePassword: string) {
+function formatRequest(
+  request: HttpRequestResponse<any>['request'],
+  hideSecrets: string[],
+  requestDataType: HttpRequestDataType
+) {
   let dataString = isReadableStream(request.data)
     ? '[STREAM]'
     : isBinary(request.data)
@@ -358,9 +362,18 @@ function formatRequest(request: HttpRequestResponse<any>['request'], hidePasswor
     ? '[BINARY]'
     : limitString(request.formattedData, 2000);
 
-  if (typeof hidePassword === 'string' && hidePassword.length > 0) {
-    dataString = dataString.replace(hidePassword, '[PASSWORD]');
-    formattedDataString = formattedDataString.replace(hidePassword, '[PASSWORD]');
+  if (requestDataType !== 'binary' && requestDataType !== 'stream') {
+    for (const secret of hideSecrets) {
+      dataString = dataString.replace(requestDataType === 'raw' ? secret : secret.replace(/"/g, '\\"'), '[SECRET]');
+      formattedDataString = formattedDataString.replace(
+        requestDataType === 'form'
+          ? encodeURIComponent(secret)
+          : requestDataType === 'json'
+          ? secret.replace(/"/g, '\\"')
+          : secret,
+        '[SECRET]'
+      );
+    }
   }
   return {
     method: request.method,
@@ -378,7 +391,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
   options: HttpRequestOptions<T, R>
 ): Promise<HttpRequestResponse<R>> {
   if (typeof options !== 'object') throw new TypeError('options must be an object with at least url property defined');
-  const [requestParams, cookieJar, url, nodeRequestParams, hidePassword] = makeOptions(options);
+  const [requestParams, cookieJar, url, nodeRequestParams, hideSecrets] = makeOptions(options);
   const { dataType, formattedData, maxRedirects, responseType, logger, makeRequest } = requestParams;
   const responseData = makeResponseData(options);
   responseData.request = makeRequestData(requestParams, url, nodeRequestParams, options.data);
@@ -478,7 +491,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
   } catch (err) {
     if (isError(err)) {
       const { request, ...response } = responseData;
-      err.request = formatRequest(request, hidePassword);
+      err.request = formatRequest(request, hideSecrets, requestParams.dataType);
       err.response = formatResponse(response);
     }
     throw err;

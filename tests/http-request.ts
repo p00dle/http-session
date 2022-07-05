@@ -431,11 +431,71 @@ describe('httpRequest', () => {
     } catch {}
     expect(true).toBe(true);
   });
-});
 
-/*
-TODO:
- - Content-Encoding: gzip, br, deflate
- - hidePassword
- - invalid JSON response
-*/
+  it('removes secret from logged requests', async () => {
+    const logs: { message: string; details: string }[] = [];
+    let err1: any = null;
+    let err2: any = null;
+    let err3: any = null;
+    function log(message: string, details: string = '') {
+      logs.push({ message, details });
+    }
+    const logger = { debug: log, warn: log, info: log, error: log };
+    const secretPassword = 'hunter2$%&"£';
+    const secretApiKey = 'oijo1i34j1oi4j-oijro32ij4314-asjdofoasdfj';
+    try {
+      await httpRequest({
+        logger,
+        url: 'http://example.notavalidtopdomain',
+        dataType: 'form',
+        data: { secretPassword, secretApiKey },
+        hideSecrets: [secretPassword, secretApiKey],
+      });
+    } catch (error) {
+      err1 = error;
+    }
+    try {
+      await httpRequest({
+        logger,
+        url: 'http://example.notavalidtopdomain',
+        dataType: 'json',
+        data: { secretPassword, secretApiKey },
+        hideSecrets: [secretPassword, secretApiKey],
+      });
+    } catch (error) {
+      err2 = error;
+    }
+    try {
+      await httpRequest({
+        logger,
+        url: 'http://example.notavalidtopdomain',
+        dataType: 'raw',
+        data: `password=${secretPassword};apiKey=${secretApiKey}`,
+        hideSecrets: [secretPassword, secretApiKey],
+});
+    } catch (error) {
+      err3 = error;
+    }
+    expect(err1.request.data).not.toMatch('hunter2');
+    expect(err1.request.data).not.toMatch(secretApiKey);
+    expect(err1.request.formattedData).not.toMatch('hunter2');
+    expect(err1.request.formattedData).not.toMatch(secretApiKey);
+    expect(logs[0].details).not.toMatch('hunter2');
+    expect(logs[0].details).not.toMatch(secretApiKey);
+
+    expect(err2.request.data).not.toMatch('hunter2');
+    expect(err2.request.data).not.toMatch(secretApiKey);
+    expect(err2.request.formattedData).not.toMatch('hunter2');
+    expect(err2.request.formattedData).not.toMatch(secretApiKey);
+    expect(logs[1].details).not.toMatch('hunter2');
+    expect(logs[1].details).not.toMatch(secretApiKey);
+
+    console.log(err3);
+    expect(err3.request.data).not.toMatch('hunter2');
+    expect(err3.request.data).not.toMatch(secretApiKey);
+    expect(err3.request.formattedData).not.toMatch('hunter2');
+    expect(err3.request.formattedData).not.toMatch(secretApiKey);
+    expect(logs[2].details).not.toMatch('hunter2');
+    expect(logs[2].details).not.toMatch(secretApiKey);
+  });
+});
