@@ -8,20 +8,7 @@ import { Readable, Writable } from 'node:stream';
 import { CookieJar, makeCookie } from '../src/cookies';
 import { callbackPromise } from '../src/lib/callbackPromise';
 import { collectStreamToString } from '../src/lib/collectStreamToString';
-
-function createReadableStream(str: string | Buffer, chunkSize = 10): Readable {
-  let start = 0;
-  return new Readable({
-    read() {
-      if (start >= str.length) {
-        this.push(null);
-      } else {
-        this.push(str.slice(start, start + chunkSize));
-        start += chunkSize;
-      }
-    },
-  });
-}
+import { createReadableStream } from '../src/lib/createReadableStream';
 
 interface MockRequestParams {
   returns: any;
