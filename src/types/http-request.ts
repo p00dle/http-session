@@ -38,7 +38,7 @@ export interface HttpRequestOptions<T extends HttpRequestDataType, R extends Htt
   agent?: Agent | false;
   headers?: HttpHeaders;
   abortSignal?: AbortSignal;
-  hidePassword?: string;
+  hideSecrets?: string[];
   timeout?: number;
   dataType?: T;
   data?: HttpRequestData<T>;
