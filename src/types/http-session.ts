@@ -69,7 +69,7 @@ export type LoginMethods<S, E> = {
 export interface HttpSessionParams<S, E, E2> {
   name: string;
   state: S;
-  login: ((session: LoginMethods<S, E>, state?: S) => any) | null;
+  login: ((session: LoginMethods<S, E>, state: S) => any) | null;
   logout: ((session: LoginMethods<S, E2>, state: S) => any) | null;
   logger: Logger;
   alwaysRenew: boolean;

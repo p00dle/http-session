@@ -53,7 +53,7 @@ const DEFAULT_SESSION_PARAMS: HttpSessionParams<unknown, void, void> = {
 };
 
 export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
-  protected login: ((session: LoginMethods<S, E>, state?: S) => Promise<void>) | null;
+  protected login: ((session: LoginMethods<S, E>, state: S) => Promise<void>) | null;
   protected logout: ((session: LoginMethods<S, E2>, state: S) => Promise<void>) | null;
   protected _makeHttpRequest: MakeHttpRequest;
   protected _makeHttpsRequest: MakeHttpRequest;
