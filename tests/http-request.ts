@@ -89,7 +89,7 @@ function mockCustomResponseHttpRequestFactory(
         });
         setTimeout(() => cb(responseStream), 1);
       } else {
-        const responseStream = Object.assign(createReadableStream(data), {
+        const responseStream = Object.assign(createReadableStream(data || ''), {
           statusCode: status,
           statusMessage: '',
           headers: {},
@@ -177,7 +177,7 @@ describe('httpRequest', () => {
       url: new URL('https://example.com'),
       responseType: 'stream',
     });
-    const receveivedData = await collectStreamToString(response.data);
+    const receveivedData = response.data ? await collectStreamToString(response.data) : '';
     expect(receveivedData).toBe(responseData);
   });
   it('formats form data correctly', async () => {
@@ -224,7 +224,7 @@ describe('httpRequest', () => {
     const receivedData = await dataReceivedPromise;
     expect(Array.from(receivedData).every((n) => n === 2)).toBe(true);
     expect(Buffer.isBuffer(response.data)).toBe(true);
-    expect(response.data.toString()).toBe('abcdefg');
+    expect(response.data ? response.data.toString() : '').toBe('abcdefg');
   });
   it('sends and receives json data', async () => {
     const jsonObject = {
@@ -472,7 +472,7 @@ describe('httpRequest', () => {
         dataType: 'raw',
         data: `password=${secretPassword};apiKey=${secretApiKey}`,
         hideSecrets: [secretPassword, secretApiKey],
-});
+      });
     } catch (error) {
       err3 = error;
     }
