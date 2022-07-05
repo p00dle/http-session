@@ -81,7 +81,9 @@ export interface HttpSessionParams<S, E, E2> {
   heartbeatUrl: string | null;
   heartbeatIntervalMs: number;
   allowMultipleRequests: boolean;
-  agentOptions: HttpAgentOptions & HttpsAgentOptions;
+  keepConnectionAlive: boolean;
+  maxSocketsPerHost: number;
+  connectionLifespanMs: number;
   enhanceLoginMethods?: (ref: symbol) => Promise<E>;
   enhanceLogoutMethods?: () => Promise<E2>;
   _makeHttpRequest: MakeHttpRequest;
