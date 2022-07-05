@@ -412,7 +412,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
       if (responseData.redirectCount === 0) {
         logger.debug(
           `${nodeRequestParams.method} ${limitString(url, 200)}`,
-          JSON.stringify(formatRequest(responseData.request, hidePassword), null, 2)
+          JSON.stringify(formatRequest(responseData.request, hideSecrets, requestParams.dataType), null, 2)
         );
       }
       const request = makeRequest(redirectUrl, nodeRequestParams, responseCallback);
