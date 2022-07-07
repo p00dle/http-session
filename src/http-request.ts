@@ -23,6 +23,7 @@ import { asyncPipeline } from './lib/asyncPipeline';
 import { callbackPromise } from './lib/callbackPromise';
 import { collectStreamToBuffer } from './lib/collectStreamToBuffer';
 import { collectStreamToString } from './lib/collectStreamToString';
+import { createReadableStream } from './lib/createReadableStream';
 /* Resources
 https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
 https://nodejs.org/api/http.html#httprequestoptions-callback
@@ -70,35 +71,35 @@ function isRecord(val: any): val is Record<string, string | string[]> {
   return typeof val === 'object' && !Array.isArray(val) && Object.keys(val).length >= 0;
 }
 
-function formatData<T extends HttpRequestDataType>(
-  dataType: T,
-  data?: Readable | string | Buffer | Uint8Array | null | Record<string, string[]>
-): Readable | string | Buffer | Uint8Array {
-  if (dataType === 'stream') {
-    if (!isReadableStream(data)) throw new TypeError('Property data is not a ReadableStream when dataType is "stream"');
-    return data;
-  } else if (dataType === 'binary') {
-    if (!isBinary(data)) throw new TypeError('Property data is not a Buffer or Uint8Array when dataType is "binary"');
-    return data;
-  } else if (dataType === 'raw') {
-    return typeof data === 'string' ? data : data ? String(data) : '';
-  } else if (dataType === 'form') {
-    if (!data) return '';
-    if (!isRecord(data)) throw new TypeError('Property data is not an object when dataType is "form"');
-    const searchParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(data)) {
-      if (Array.isArray(value)) {
-        value.forEach((val) => searchParams.append(key, val));
-      } else {
-        searchParams.append(key, value);
+function formatData(dataType: Exclude<HttpRequestDataType, 'stream'>, data?: any): string | Buffer | Uint8Array {
+  switch (dataType) {
+    case 'binary':
+      if (!isBinary(data)) throw new TypeError('Property data is not a Buffer or Uint8Array when dataType is "binary"');
+      return data;
+
+    case 'form':
+      if (!data) return '';
+      if (!isRecord(data)) throw new TypeError('Property data is not an object when dataType is "form"');
+      const searchParams = new URLSearchParams();
+      for (const [key, value] of Object.entries(data)) {
+        if (Array.isArray(value)) {
+          value.forEach((val) => searchParams.append(key, val));
+        } else {
+          searchParams.append(key, value);
+        }
       }
-    }
-    return searchParams.toString();
-  } else if (dataType === 'json') {
-    if (typeof data === 'undefined') return '';
-    return JSON.stringify(data);
+      return searchParams.toString();
+
+    case 'json':
+      if (typeof data === 'undefined') return '';
+      return JSON.stringify(data);
+
+    case 'raw':
+      return typeof data === 'string' ? data : data ? String(data) : '';
+
+    default:
+      throw new TypeError(`Invalid dataType: ${dataType}`);
   }
-  throw new TypeError(`Invalid dataType: ${dataType}`);
 }
 
 function makeRequestParams<T extends HttpRequestDataType>(
@@ -109,7 +110,10 @@ function makeRequestParams<T extends HttpRequestDataType>(
     dataType: (options.dataType || 'raw') as T,
     responseType: options.responseType || 'string',
     maxRedirects: options.maxRedirects || 5,
-    formattedData: formatData(options.dataType || 'raw', options.data),
+    formattedData:
+      options.dataType === 'stream'
+        ? options.data || createReadableStream('')
+        : formatData(options.dataType || 'raw', options.data),
     logger: options.logger || noOpLogger,
     makeRequest:
       options._request ||
@@ -392,7 +396,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
 ): Promise<HttpRequestResponse<R>> {
   if (typeof options !== 'object') throw new TypeError('options must be an object with at least url property defined');
   const [requestParams, cookieJar, url, nodeRequestParams, hideSecrets] = makeOptions(options);
-  const { dataType, formattedData, maxRedirects, responseType, logger, makeRequest } = requestParams;
+  const { formattedData, maxRedirects, responseType, logger, makeRequest } = requestParams;
   const responseData = makeResponseData(options);
   responseData.request = makeRequestData(requestParams, url, nodeRequestParams, options.data);
   if (url === invalidUrl) {
@@ -416,30 +420,20 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
         );
       }
       const request = makeRequest(redirectUrl, nodeRequestParams, responseCallback);
-      if (keepMethodAndData && dataType === 'stream') {
-        await asyncPipeline(formattedData as Readable, request);
-      } else {
-        await new Promise<void>((resolve, reject) => {
-          let settled = false;
-          function onResolve() {
-            if (!settled) {
-              settled = true;
-              resolve();
-            }
+      await asyncPipeline(createReadableStream(keepMethodAndData ? formattedData : ''), request);
+      response = await new Promise((resolve, reject) => {
+        let settled = false;
+        request.on('error', (err) => {
+          if (!settled) {
+            settled = true;
+            reject(err);
           }
-          function onReject(err: any) {
-            if (!settled) {
-              settled = true;
-              reject(err);
-            }
-          }
-          request.on('close', onResolve);
-          request.on('finish', onResolve);
-          request.on('error', onReject);
-          request.end(keepMethodAndData ? formattedData : undefined);
         });
-      }
-      response = await responsePromise;
+        responsePromise.then(
+          (res) => resolve(res),
+          (err) => reject(err)
+        );
+      });
       cookieJar.collectCookiesFromResponse(redirectUrl, response.headers);
       if (!isRedirect(response.statusCode)) break;
       const originalUrl = redirectUrl;

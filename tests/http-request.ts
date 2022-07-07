@@ -37,6 +37,7 @@ function mockHttpRequestFactory(params: MockRequestParams): MakeHttpRequest {
         } else {
           onDataReceived(chunks.join(''));
         }
+        requestStream.emit('response');
       });
     }
     const responseStream = Object.assign(createReadableStream(returns), {
@@ -63,6 +64,7 @@ function mockHeadersHttpRequestFactory(fn: (headers: HttpHeaders) => HttpHeaders
         headers: fn(options.headers as HttpHeaders),
       });
       setTimeout(() => cb(responseStream), 1);
+      requestStream.emit('response');
     });
     return requestStream;
   };
@@ -96,6 +98,7 @@ function mockCustomResponseHttpRequestFactory(
         });
         setTimeout(() => cb(responseStream), 1);
       }
+      requestStream.emit('response');
     });
     return requestStream;
   };
@@ -295,41 +298,44 @@ describe('httpRequest', () => {
     expect(errors.every((err) => isHttpRequestError(err) || err instanceof Error)).toBe(true);
   });
   it('handles redirects', async () => {
-    const assertions: boolean[] = [];
+    const assertions: (string | null)[] = [];
+    function assert(bool: boolean, message: string) {
+      assertions.push(bool ? null : message);
+    }
     const makeHttpRequest = mockCustomResponseHttpRequestFactory({
       'https://abc.com/': ({ method }, data) => {
-        assertions.push(method === 'POST');
-        assertions.push(data === 'abc');
+        assert(method === 'POST', 'method is not POST when calling https://abc.com/');
+        assert(data === 'abc', `data is not 'abc' when calling https://abc.com/`);
         return ['redirect', 307, 'https://abc.com/foo'];
       },
       'https://abc.com/foo': ({ method }, data) => {
-        assertions.push(method === 'POST');
-        assertions.push(data === 'abc');
+        assert(method === 'POST', 'method is not POST when calling https://abc.com/foo');
+        assert(data === 'abc', `data is not 'abc' when calling https://abc.com/foo`);
         return ['redirect', 308, '/foo/bar'];
       },
       'https://abc.com/foo/bar': ({ method }, data) => {
-        assertions.push(method === 'POST');
-        assertions.push(data === 'abc');
+        assert(method === 'POST', 'method is not POST when calling https://abc.com/foo/bar');
+        assert(data === 'abc', `data is not 'abc' when calling https://abc.com/foo/bar`);
         return ['redirect', 301, 'https://another.com?boo=hoo'];
       },
       'https://another.com/?boo=hoo': ({ method }, data) => {
-        assertions.push(method === 'GET');
-        assertions.push(!data);
+        assert(method === 'GET', 'method is not GET when calling https://another.com/?boo=hoo');
+        assert(!data, `data is not empty when calling https://another.com/?boo=hoo`);
         return ['redirect', 302, 'https://another.com/foo'];
       },
       'https://another.com/foo': ({ method }, data) => {
-        assertions.push(method === 'GET');
-        assertions.push(!data);
+        assert(method === 'GET', 'method is not GET when calling https://another.com/foo');
+        assert(!data, `data is not empty when calling https://another.com/foo`);
         return ['redirect', 303, '/foo/bar'];
       },
       'https://another.com/foo/bar': ({ method }, data) => {
-        assertions.push(method === 'GET');
-        assertions.push(!data);
+        assert(method === 'GET', 'method is not GET when calling https://another.com/foo/bar');
+        assert(!data, `data is not empty when calling https://another.com/foo/bar`);
         return ['redirect', 399, '/foo/bar/baz?boo=hoo'];
       },
       'https://another.com/foo/bar/baz?boo=hoo': ({ method }, data) => {
-        assertions.push(method === 'GET');
-        assertions.push(!data);
+        assert(method === 'GET', 'method is not GET when calling https://another.com/foo/bar/baz?boo=hoo');
+        assert(!data, `data is not empty when calling https://another.com/foo/bar/baz?boo=hoo`);
         return ['data', 200, '123'];
       },
     });
@@ -350,7 +356,10 @@ describe('httpRequest', () => {
       timeout: 4000,
     });
     expect(response.data).toBe('123');
-    expect(assertions.every((id) => id)).toBe(true);
+    for (const assertion of assertions) {
+      expect(assertion).toBeNull();
+    }
+    // expect(assertions.every((id) => id)).toBe(true);
   });
   it('handles invalid redirects', async () => {
     const makeHttpRequest = mockCustomResponseHttpRequestFactory({
@@ -496,5 +505,15 @@ describe('httpRequest', () => {
     expect(err3.request.formattedData).not.toMatch(secretApiKey);
     expect(logs[2].details).not.toMatch('hunter2');
     expect(logs[2].details).not.toMatch(secretApiKey);
+  });
+
+  it('throws an error on ECONNRESET', async () => {
+    let err: any = null;
+    try {
+      await httpRequest({ url: 'http://127.0.0.1:53100' });
+    } catch (error) {
+      err = error;
+    }
+    expect(err).not.toBeNull();
   });
 });
