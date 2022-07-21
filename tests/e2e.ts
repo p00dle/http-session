@@ -3,12 +3,54 @@ import { HttpSession } from '../src/http-session';
 import { createGzip, createBrotliCompress, createDeflate } from 'node:zlib';
 import * as net from 'node:net';
 import { createReadableStream } from '../src/lib/createReadableStream';
+import { makeCookie } from '../src/cookies/make'
 
 describe('End to end', () => {
   const server = new TestServer({ port: 3000 });
 
   beforeAll(() => {
     return server.start();
+  });
+
+
+  test('Cookies are extracted from headers and sent on subsequent requests', async () => {
+    const session = new HttpSession({
+      async login(session) {
+        session.addCookies([makeCookie({key: 'a', value: 'b', domain: 'localhost'})])
+      },
+    });
+    const { request } = await session.requestSession();
+    let cookieHeader = '';
+    const unsubscribes = [
+      server.on('GET', '/', (_req, res) => {
+        res.setHeader('set-cookie', ['foo=bar', 'boo=baz'])
+        res.end('OK');
+      }),
+      server.on('GET', '/a', (req, res) => {
+        cookieHeader = req.headers.cookie || '';
+        res.end('OK');
+      })
+    ];
+    await request({url: 'http://localhost:3000'});
+    await request({url: 'http://localhost:3000/a'});
+    for (const unsubscribe of unsubscribes) unsubscribe();
+    await session.shutdown();
+    expect(cookieHeader).toBe('a=b; foo=bar; boo=baz');
+  });
+
+
+  test('Connection keep-alive header should be set when keepConnectionAlive is true', async () => {
+    const session = new HttpSession();
+    const { request } = await session.requestSession();
+    let connectionHeader: string | undefined = ''; 
+    const unsubscribe = server.on('GET', '/', (req, res) => {
+      connectionHeader = req.headers.connection;
+      res.end('OK');
+    });
+    await request({ method: 'GET', url: 'http://localhost:3000' });
+    unsubscribe();
+    await session.shutdown();
+    expect(connectionHeader).toBe('keep-alive');
   });
 
   test('sockets are re-used by default', async () => {
@@ -28,7 +70,7 @@ describe('End to end', () => {
     expect(serverSockets.size).toBe(1);
   });
 
-  test('sockets should not be re-sed when keepConnectionAlive is false', async () => {
+  test('sockets should not be re-used when keepConnectionAlive is false', async () => {
     const session = new HttpSession({
       keepConnectionAlive: false,
     });
