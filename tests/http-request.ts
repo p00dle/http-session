@@ -433,10 +433,10 @@ describe('httpRequest', () => {
   });
   it('handles error thrown by underlying request', async () => {
     try {
-      await httpRequest({ url: 'http://example.thisisnotavalidtopdomain' });
+      await httpRequest({ url: 'http://256.256.256.256' });
     } catch {}
     try {
-      await httpRequest({ url: 'https://example.thisisnotavalidtopdomain' });
+      await httpRequest({ url: 'https://256.256.256.256:443' });
     } catch {}
     expect(true).toBe(true);
   });
