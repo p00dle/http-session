@@ -120,7 +120,7 @@ function makeRequestParams<T extends HttpRequestDataType>(
       ((url, options, cb) => {
         return url.protocol === 'https:' ? nodeHttpsRequest(url, options, cb) : nodeHttpRequest(url, options, cb);
       }),
-    host: options.host || options.previousUrl ? makeURL(options.previousUrl).host : url.host,
+    host: options.host || options.previousUrl ? makeURL(options.previousUrl).hostname : url.hostname,
     origin: options.previousUrl ? makeURL(options.previousUrl).origin : url.origin,
   };
 }
