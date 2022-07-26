@@ -451,7 +451,7 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
         `FROM: ${limitString(originalUrl, 1000)}\nTO: ${limitString(redirectUrl, 1000)}`
       );
       keepMethodAndData = response.statusCode === 307 || response.statusCode === 308;
-    } while (responseData.redirectCount++ < maxRedirects);
+    } while (++responseData.redirectCount < maxRedirects);
     if (responseData.redirectCount >= maxRedirects) {
       throw makeHttpRequestError(new Error('Max redirect count exceeded'), responseData);
     }
