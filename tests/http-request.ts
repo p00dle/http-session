@@ -2,6 +2,7 @@ import type { RequestOptions } from 'node:https';
 import type { MakeHttpRequest, HttpHeaders } from '../src/types/http-request';
 import type { Cookie } from '../src/types/cookies';
 
+import { mockHttpRequestFactory } from '../src/lib/mockHttpRequest';
 import { isHttpRequestError } from '../src/http-request';
 import { httpRequest } from '../src';
 import { Writable } from 'node:stream';
@@ -9,46 +10,6 @@ import { CookieJar, makeCookie } from '../src/cookies';
 import { callbackPromise } from '../src/lib/callbackPromise';
 import { collectStreamToString } from '../src/lib/collectStreamToString';
 import { createReadableStream } from '../src/lib/createReadableStream';
-
-interface MockRequestParams {
-  returns: any;
-  binary?: boolean;
-  statusCode?: number;
-  headers?: HttpHeaders;
-  onDataReceived?: (data: any) => void;
-  onOptionsReceived?: (data: RequestOptions & { url: URL | string }) => void;
-  delay?: number;
-}
-function mockHttpRequestFactory(params: MockRequestParams): MakeHttpRequest {
-  const { returns, binary, statusCode, headers, onDataReceived, onOptionsReceived, delay = 1 } = params;
-  return (url, options, cb) => {
-    if (onOptionsReceived) onOptionsReceived({ url, ...options });
-    const chunks: any[] = [];
-    const requestStream = new Writable({
-      write(chunk, _enc, cb) {
-        chunks.push(chunk);
-        cb();
-      },
-    });
-    if (onDataReceived) {
-      requestStream.on('finish', () => {
-        if (binary) {
-          onDataReceived(Buffer.concat(chunks));
-        } else {
-          onDataReceived(chunks.join(''));
-        }
-        requestStream.emit('response');
-      });
-    }
-    const responseStream = Object.assign(createReadableStream(returns), {
-      statusCode,
-      statusMessage: '',
-      headers: headers || {},
-    });
-    setTimeout(() => cb(responseStream), delay);
-    return requestStream;
-  };
-}
 
 function mockHeadersHttpRequestFactory(fn: (headers: HttpHeaders) => HttpHeaders): MakeHttpRequest {
   return (_, options, cb) => {
