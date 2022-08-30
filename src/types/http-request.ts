@@ -27,7 +27,7 @@ export type HttpRequestData<T extends HttpRequestDataType | undefined> = T exten
   : T extends 'form'
   ? Record<string, string | string[]>
   : T extends 'binary'
-  ? Buffer | Uint8Array
+  ? Buffer
   : never;
 
 export interface HttpRequestOptions<T extends HttpRequestDataType, R extends HttpResponseType> {
@@ -61,7 +61,7 @@ export type MakeHttpRequest = (url: URL, options: RequestOptions, callback: (dat
 export interface HttpRequestParams {
   dataType: HttpRequestDataType;
   responseType: HttpResponseType;
-  formattedData: Readable | string | Buffer | Uint8Array;
+  formattedData: Readable | string | Buffer;
   maxRedirects: number;
   logger: Logger;
   host: string;
@@ -96,7 +96,7 @@ export interface HttpRequestResponse<T extends HttpResponseType> {
     timeout: number | '[NO TIMEOUT]';
     dataType: HttpRequestDataType;
     data: any;
-    formattedData: Readable | string | Buffer | Uint8Array;
+    formattedData: Readable | string | Buffer;
     headers: HttpHeaders;
     cookies: Record<string, string>;
   };

@@ -63,18 +63,18 @@ function isReadableStream(val: any): val is Readable {
   return !!val && typeof val.pipe === 'function';
 }
 
-function isBinary(val: any): val is Buffer | Uint8Array {
-  return Buffer.isBuffer(val) || val instanceof Uint8Array;
+function isBinary(val: any): val is Buffer {
+  return Buffer.isBuffer(val);
 }
 
 function isRecord(val: any): val is Record<string, string | string[]> {
   return typeof val === 'object' && !Array.isArray(val) && Object.keys(val).length >= 0;
 }
 
-function formatData(dataType: Exclude<HttpRequestDataType, 'stream'>, data?: any): string | Buffer | Uint8Array {
+function formatData(dataType: Exclude<HttpRequestDataType, 'stream'>, data?: any): string | Buffer {
   switch (dataType) {
     case 'binary':
-      if (!isBinary(data)) throw new TypeError('Property data is not a Buffer or Uint8Array when dataType is "binary"');
+      if (!isBinary(data)) throw new TypeError('Property data is not a Buffer when dataType is "binary"');
       return data;
 
     case 'form':
@@ -148,7 +148,7 @@ function makeHeaders(
       headers['Content-Length'] = Buffer.byteLength(requestParams.formattedData as string);
     } else if (requestParams.dataType === 'binary') {
       headers['Content-Type'] = 'application/octet-stream';
-      headers['Content-Length'] = Buffer.byteLength(requestParams.formattedData as Buffer | Uint8Array);
+      headers['Content-Length'] = Buffer.byteLength(requestParams.formattedData as Buffer);
     } else if (requestParams.dataType === 'json') {
       headers['Content-Type'] = 'application/json';
       headers['Content-Length'] = Buffer.byteLength(requestParams.formattedData as string);

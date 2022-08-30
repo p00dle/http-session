@@ -167,7 +167,7 @@ describe('httpRequest', () => {
     expect(receivedData).toEqual('a+b=c+d&e=f%3Dg&h=i%26j&arr=a&arr=b');
   });
   it('sends and receives binary data', async () => {
-    const requestBuffer = new Uint8Array(10).fill(2);
+    const requestBuffer = Buffer.from('1234567890');
     const responseBuffer = Buffer.from('abcdefg');
     const [dataReceivedPromise, dataReceivedCb] = callbackPromise<any>();
     const makeHttpRequest = mockHttpRequestFactory({
@@ -186,7 +186,7 @@ describe('httpRequest', () => {
       data: requestBuffer,
     });
     const receivedData = await dataReceivedPromise;
-    expect(Array.from(receivedData).every((n) => n === 2)).toBe(true);
+    expect(receivedData.toString()).toEqual('1234567890');
     expect(Buffer.isBuffer(response.data)).toBe(true);
     expect(response.data ? response.data.toString() : '').toBe('abcdefg');
   });
@@ -248,7 +248,7 @@ describe('httpRequest', () => {
       () => httpRequest({ method: 'POST', dataType: 'form', data: 123 }),
       // @ts-expect-error ...
       () => httpRequest({ method: 'POST', dataType: 'form', data: [1, 2, 3] }),
-      // @ts-expect-error when dataType=binary data must be either Buffer or UintArray8
+      // @ts-expect-error when dataType=binary data must be a Buffer
       () => httpRequest({ method: 'POST', dataType: 'binary', data: 'abc' }),
       // @ts-expect-error ...
       () => httpRequest({ method: 'POST', dataType: 'binary', data: [1, 2, 3] }),
