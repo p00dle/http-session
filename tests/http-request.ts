@@ -477,4 +477,90 @@ describe('httpRequest', () => {
     }
     expect(err).not.toBeNull();
   });
+
+  it('validates response status', async () => {
+    let err: any = null;
+    const makeHttpRequest = mockCustomResponseHttpRequestFactory({
+      'https://example.com/200': () => ['data', 200, 'ok'],
+      'https://example.com/500': () => ['data', 500, 'bad'],
+    });
+    const validResponse = await httpRequest({
+      url: 'https://example.com/200',
+      validateStatus: 200,
+      responseType: 'string',
+      _request: makeHttpRequest,
+    });
+    expect(validResponse.data).toBe('ok');
+    try {
+      await httpRequest({
+        url: 'https://example.com/500',
+        validateStatus: 200,
+        responseType: 'string',
+        _request: makeHttpRequest,
+      });
+    } catch (error) {
+      err = error;
+    }
+    expect(err).not.toBeNull();
+  });
+
+  it('checks for empty responses', async () => {
+    let err: any = null;
+    const makeHttpRequest = mockCustomResponseHttpRequestFactory({
+      'https://example.com/good': () => ['data', 200, 'ok'],
+      'https://example.com/empty': () => ['data', 200, ''],
+    });
+    const validResponse = await httpRequest({
+      url: 'https://example.com/good',
+      assertNonEmptyResponse: true,
+      responseType: 'string',
+      _request: makeHttpRequest,
+    });
+    expect(validResponse.data).toBe('ok');
+    try {
+      await httpRequest({
+        url: 'https://example.com/empty',
+        assertNonEmptyResponse: true,
+        responseType: 'string',
+        _request: makeHttpRequest,
+      });
+    } catch (error) {
+      err = error;
+    }
+    expect(err).not.toBeNull();
+  });
+
+  it('validates JSON response', async () => {
+    let err: any = null;
+    const obj = {
+      str: 'abc',
+      num: 12,
+      bool: false,
+    };
+    const makeHttpRequest = mockCustomResponseHttpRequestFactory({
+      'https://example.com/good': () => ['data', 200, JSON.stringify(obj)],
+      'https://example.com/bad': () => ['data', 200, '{}'],
+    });
+    function validateJson(json: { str: string; num: number; bool: boolean }): boolean {
+      return typeof json.str === 'string' && typeof json.num === 'number' && typeof json.bool === 'boolean';
+    }
+    const response = await httpRequest({
+      url: 'https://example.com/good',
+      responseType: 'json',
+      validateJson,
+      _request: makeHttpRequest,
+    });
+    expect(response.data).toEqual(obj);
+    try {
+      await httpRequest({
+        url: 'https://example.com/bad',
+        responseType: 'json',
+        validateJson,
+        _request: makeHttpRequest,
+      });
+    } catch (error) {
+      err = error;
+    }
+    expect(err).not.toBeNull();
+  });
 });

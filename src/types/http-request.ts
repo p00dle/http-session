@@ -30,7 +30,7 @@ export type HttpRequestData<T extends HttpRequestDataType | undefined> = T exten
   ? Buffer
   : never;
 
-export interface HttpRequestOptions<T extends HttpRequestDataType, R extends HttpResponseType> {
+export interface HttpRequestOptions<T extends HttpRequestDataType, R extends HttpResponseType, J = any> {
   url: URL | string;
   previousUrl?: URL | string;
   method?: HttpMethod;
@@ -47,6 +47,9 @@ export interface HttpRequestOptions<T extends HttpRequestDataType, R extends Htt
   maxRedirects?: number;
   logger?: Logger;
   host?: string;
+  validateStatus?: number;
+  validateJson?: (json: J) => boolean;
+  assertNonEmptyResponse?: boolean;
   _request?: MakeHttpRequest;
 }
 
@@ -59,6 +62,9 @@ export type ResponseStream = Readable & {
 export type MakeHttpRequest = (url: URL, options: RequestOptions, callback: (data: ResponseStream) => any) => Writable;
 
 export interface HttpRequestParams {
+  validateJson?: (json: any) => boolean;
+  validateStatus?: number;
+  assertNonEmptyResponse: boolean;
   dataType: HttpRequestDataType;
   responseType: HttpResponseType;
   formattedData: Readable | string | Buffer;
@@ -69,19 +75,17 @@ export interface HttpRequestParams {
   makeRequest: MakeHttpRequest;
 }
 
-export type HttpResponseDataType<T extends HttpResponseType> =
-  | (T extends 'json'
-      ? unknown
-      : T extends 'binary'
-      ? Buffer
-      : T extends 'stream'
-      ? Readable
-      : T extends 'string'
-      ? string
-      : never)
-  | null;
+export type HttpResponseDataType<T extends HttpResponseType, J> = T extends 'json'
+  ? J
+  : T extends 'binary'
+  ? Buffer
+  : T extends 'stream'
+  ? Readable
+  : T extends 'string'
+  ? string
+  : never;
 
-export interface HttpRequestResponse<T extends HttpResponseType> {
+export interface HttpRequestResponse<T extends HttpResponseType, J = unknown> {
   status: number;
   statusMessage: string;
   url: URL;
@@ -89,7 +93,7 @@ export interface HttpRequestResponse<T extends HttpResponseType> {
   redirectCount: 0;
   headers: HttpHeaders;
   cookies: Record<string, string>;
-  data: HttpResponseDataType<T>;
+  data: HttpResponseDataType<T, J>;
   request: {
     method: string;
     url: URL;

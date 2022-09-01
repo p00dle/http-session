@@ -16,6 +16,7 @@ import type {
   HttpRequestParams,
   HttpResponseType,
   ResponseStream,
+  HttpResponseDataType,
 } from './types/http-request';
 import { createGunzip, createBrotliDecompress, createInflate } from 'node:zlib';
 import { limitString } from './lib/limitString';
@@ -122,6 +123,9 @@ function makeRequestParams<T extends HttpRequestDataType>(
       }),
     host: options.host || options.previousUrl ? makeURL(options.previousUrl).hostname : url.hostname,
     origin: options.previousUrl ? makeURL(options.previousUrl).origin : url.origin,
+    validateJson: options.validateJson,
+    validateStatus: options.validateStatus,
+    assertNonEmptyResponse: options.assertNonEmptyResponse || false,
   };
 }
 
@@ -276,9 +280,9 @@ function makeURL(url?: string | URL): URL {
   }
 }
 
-function makeResponseData<T extends HttpRequestDataType, R extends HttpResponseType>(
-  options: HttpRequestOptions<T, R>
-): HttpRequestResponse<R> {
+function makeResponseData<T extends HttpRequestDataType, R extends HttpResponseType, J>(
+  options: HttpRequestOptions<T, R, J>
+): HttpRequestResponse<R, J> {
   return {
     status: 0,
     statusMessage: '',
@@ -287,7 +291,7 @@ function makeResponseData<T extends HttpRequestDataType, R extends HttpResponseT
     redirectUrls: [],
     cookies: {},
     headers: {},
-    data: null,
+    data: null as unknown as HttpResponseDataType<R, J>,
     request: {
       method: 'UNKNOWN',
       timeout: '[NO TIMEOUT]',
@@ -391,12 +395,21 @@ function formatRequest(
   };
 }
 
-export async function httpRequest<T extends HttpRequestDataType, R extends HttpResponseType>(
-  options: HttpRequestOptions<T, R>
-): Promise<HttpRequestResponse<R>> {
+export async function httpRequest<T extends HttpRequestDataType, R extends HttpResponseType, J>(
+  options: HttpRequestOptions<T, R, J>
+): Promise<HttpRequestResponse<R, J>> {
   if (typeof options !== 'object') throw new TypeError('options must be an object with at least url property defined');
   const [requestParams, cookieJar, url, nodeRequestParams, hideSecrets] = makeOptions(options);
-  const { formattedData, maxRedirects, responseType, logger, makeRequest } = requestParams;
+  const {
+    formattedData,
+    maxRedirects,
+    responseType,
+    logger,
+    makeRequest,
+    validateJson,
+    validateStatus,
+    assertNonEmptyResponse,
+  } = requestParams;
   const responseData = makeResponseData(options);
   responseData.request = makeRequestData(requestParams, url, nodeRequestParams, options.data);
   if (url === invalidUrl) {
@@ -455,6 +468,13 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
     if (responseData.redirectCount >= maxRedirects) {
       throw makeHttpRequestError(new Error('Max redirect count exceeded'), responseData);
     }
+    if (validateStatus && response.statusCode !== validateStatus) {
+      throw makeHttpRequestError(
+        new Error(`Response status ${response.statusCode} not matching expected status ${validateStatus}`),
+        responseData
+      );
+    }
+
     const [cookies, headers] = extractCookiesFromHeaders(response.headers, true);
     let dataStream: Readable | Transform = response;
     const contentEncoding = getContentEncoding(response.headers);
@@ -477,6 +497,9 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
         : responseType === 'binary'
         ? await collectStreamToBuffer(dataStream)
         : await collectStreamToString(dataStream);
+    if (assertNonEmptyResponse && responseType !== 'stream' && (data as string).length === 0) {
+      throw makeHttpRequestError(new Error('Empty response'), responseData);
+    }
     responseData.status = response.statusCode as number;
     responseData.statusMessage = response.statusMessage || '';
     responseData.url = redirectUrl;
@@ -490,7 +513,9 @@ export async function httpRequest<T extends HttpRequestDataType, R extends HttpR
         throw new Error('Unable to parse response data as JSON');
       }
     }
-
+    if (responseType === 'json' && validateJson && !validateJson(responseData.data)) {
+      throw makeHttpRequestError(new Error(`Invalid response JSON`), responseData);
+    }
     logger.debug(
       `RESPONSE (${responseData.status}) ${limitString(redirectUrl, 200)} `,
       JSON.stringify(formatResponse(responseData), null, 2)
