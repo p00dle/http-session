@@ -369,6 +369,8 @@ export class HttpSession<S, E, E2> extends UtilityClass<HttpSessionStatusData> {
       setState: wrap('setState', (state) => this.setState(state)),
       wasReleased: false,
     };
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore TODO: need a way around this error;
     return sessionObject;
   }
 

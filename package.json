@@ -1,6 +1,6 @@
 {
   "name": "@kksiuda/http-session",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Http session and cookies management",
   "main": "./dist/index.js",
   "author": "Krzysztof Siuda",

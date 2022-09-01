@@ -42,9 +42,9 @@ export interface HttpSessionSerializedData<S> {
 export interface HttpSessionObject<S> {
   getState: () => S;
   setState: (state: Partial<S>) => any;
-  request: <T extends HttpRequestDataType, R extends HttpResponseType>(
-    options: HttpRequestOptions<T, R>
-  ) => Promise<HttpRequestResponse<R>>;
+  request: <T extends HttpRequestDataType, R extends HttpResponseType, J>(
+    options: HttpRequestOptions<T, R, J>
+  ) => Promise<HttpRequestResponse<R, J>>;
   release: () => Promise<void>;
   serialize: () => HttpSessionSerializedData<S>;
   reportLockout: () => Promise<void>;
@@ -52,9 +52,9 @@ export interface HttpSessionObject<S> {
   wasReleased: boolean;
 }
 
-export type HttpSessionRequest = <T extends HttpRequestDataType, R extends HttpResponseType>(
-  options: HttpRequestOptions<T, R>
-) => Promise<HttpRequestResponse<R>>;
+export type HttpSessionRequest = <T extends HttpRequestDataType, R extends HttpResponseType, J>(
+  options: HttpRequestOptions<T, R, J>
+) => Promise<HttpRequestResponse<R, J>>;
 
 export type LoginMethods<S, E> = {
   request: HttpSessionRequest;
